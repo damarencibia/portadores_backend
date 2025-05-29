@@ -1,18 +1,26 @@
 <?php
 
-// database/seeders/RoleSeeder.php
-
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Role;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
 
 class RoleSeeder extends Seeder
 {
-    public function run()
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
     {
-        // Crear roles iniciales
+        // Crea los roles básicos
         Role::create(['name' => 'admin']);
-        Role::create(['name' => 'client']);
+        Role::create(['name' => 'responsable_ueb']);
+        Role::create(['name' => 'operador_datos']);
+        Role::create(['name' => 'consulta']);
+
+        // O crea roles aleatorios usando el factory
+        // Role::factory()->count(4)->create();
     }
 }
+

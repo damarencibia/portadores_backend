@@ -3,170 +3,227 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-
-use Illuminate\Http\Request;
 use App\Models\User;
-use App\Models\Role;
-use Illuminate\Support\Facades\Validator;
+use App\Models\Ueb; // Importar Ueb para validación
+use App\Utils\ResponseFormat; // Asegúrate de que la ruta sea correcta
+use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Hash; // Para hashear la contraseña
+use Illuminate\Support\Facades\Validator; // Importar Validator
+use Illuminate\Support\Facades\DB; // Importar DB
+use Exception;
 
 class UserController extends Controller
 {
     /**
-     * Obtener todos los usuarios.
-     *
-     * @return \Illuminate\Http\Response
+     * Display a listing of the resource.
+     * Lista todos los Usuarios con paginación.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $users = User::with('roles')->get(); // Incluir roles en la respuesta
-        return response()->json($users);
-    }
+        try {
+            // Obtener parámetros de paginación de la solicitud
+            $itemsPerPage = $request->input("itemsPerPage", 20); // Número de elementos por página, por defecto 20
+            $page = $request->input("page", 1); // Número de página actual, por defecto 1
 
-    /**
-     * Obtener un usuario específico por ID.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        $user = User::with('roles')->find($id); // Incluir roles en la respuesta
+            // Construir la consulta con relaciones cargadas
+            $usersQuery = User::with(['ueb', 'roles']);
 
-        if (!$user) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
+             // Aquí podrías añadir filtros si fueran necesarios
+            // Ejemplo: $usersQuery->where('name', 'like', '%' . $request->input('searchTerm') . '%');
+            // Ejemplo: $usersQuery->where('ueb_id', $request->input('ueb_id'));
+
+
+            // Aplicar paginación o obtener todos los resultados
+            $paginated = $itemsPerPage == -1
+                ? $usersQuery->get()
+                : $usersQuery->paginate($itemsPerPage, ['*'], 'page', $page);
+
+            // Preparar metadatos de paginación
+            $meta = [
+                'total' => $itemsPerPage != -1 ? $paginated->total() : count($paginated),
+                'perPage' => $itemsPerPage != -1 ? $paginated->perPage() : count($paginated),
+                'page' => $itemsPerPage != -1 ? $paginated->currentPage() : 1,
+                 'last_page' => $itemsPerPage != -1 ? $paginated->lastPage() : 1, // Añadir last_page
+            ];
+
+            // Obtener los elementos de la página actual
+            $users = $itemsPerPage != -1 ? $paginated->items() : $paginated;
+
+            return ResponseFormat::response(200, 'Lista de Usuarios obtenida con éxito.', $users, $meta);
+
+        } catch (Exception $e) {
+            return ResponseFormat::exceptionResponse($e);
         }
-
-        return response()->json($user);
     }
 
     /**
-     * Crear un nuevo usuario.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * Store a newly created resource in storage.
+     * Crea un nuevo Usuario.
      */
     public function store(Request $request)
     {
-        // Validar los datos de entrada
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'lastname' => 'required|string|max:255',
-            'ci' => 'required|string|unique:users|max:255',
-            'address' => 'required|string|max:255',
-            'email' => 'required|string|email|unique:users|max:255',
-            'phone' => 'required|string|max:255',
-        ]);
+        try {
+            // Validación manual con Validator
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users',
+                'password' => 'required|string|min:8',
+                'ueb_id' => 'required|exists:uebs,id', // Asegura que la UEB exista
+                // Puedes añadir validación para roles si los asignas aquí
+            ], [
+                 'name.required' => 'El nombre del usuario es obligatorio.',
+                 'email.required' => 'El correo electrónico es obligatorio.',
+                 'email.email' => 'El correo electrónico debe ser una dirección válida.',
+                 'email.unique' => 'El correo electrónico ya está registrado.',
+                 'password.required' => 'La contraseña es obligatoria.',
+                 'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+                 'ueb_id.required' => 'La UEB es obligatoria.',
+                 'ueb_id.exists' => 'La UEB seleccionada no existe.',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 400);
+            if ($validator->fails()) {
+                $message = ResponseFormat::validatorErrorMessage($validator);
+                throw new \Exception($message, 400);
+            }
+
+            DB::beginTransaction(); // Iniciar transacción
+
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password), // Hashear la contraseña
+                'ueb_id' => $request->ueb_id,
+            ]);
+
+            // Si manejas la asignación de roles al crear usuario, hazlo aquí
+            // if ($request->has('role_ids')) {
+            //     $user->roles()->attach($request->role_ids);
+            // }
+
+            DB::commit(); // Confirmar transacción
+
+            return ResponseFormat::response(201, 'Usuario creado con éxito.', $user);
+
+        } catch (Exception $e) {
+            DB::rollBack(); // Revertir transacción
+            return ResponseFormat::exceptionResponse($e);
         }
-
-        // Crear el usuario
-        $user = User::create($request->all());
-
-        return response()->json($user, 201);
     }
 
     /**
-     * Actualizar un usuario existente.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * Display the specified resource.
+     * Muestra un Usuario específico.
+     */
+    public function show($id)
+    {
+        try {
+            // Carga la relación 'ueb' y 'roles'
+            $user = User::with(['ueb', 'roles'])->findOrFail($id);
+            return ResponseFormat::response(200, 'Usuario obtenido con éxito.', $user);
+        } catch (ModelNotFoundException $e) {
+            return ResponseFormat::response(404, 'Usuario no encontrado.', null);
+        } catch (Exception $e) {
+            return ResponseFormat::exceptionResponse($e);
+        }
+    }
+
+    /**
+     * Update the specified resource in storage.
+     * Actualiza un Usuario específico.
      */
     public function update(Request $request, $id)
     {
-        $user = User::find($id);
+        try {
+            $user = User::findOrFail($id);
 
-        if (!$user) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
+            // Validación manual con Validator
+             $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users,email,' . $id, // Ignora el email actual
+                'password' => 'nullable|string|min:8', // Contraseña opcional al actualizar
+                'ueb_id' => 'required|exists:uebs,id', // Asegura que la UEB exista
+                 // Puedes añadir validación para roles si los actualizas aquí
+            ], [
+                 'name.required' => 'El nombre del usuario es obligatorio.',
+                 'email.required' => 'El correo electrónico es obligatorio.',
+                 'email.email' => 'El correo electrónico debe ser una dirección válida.',
+                 'email.unique' => 'El correo electrónico ya está registrado.',
+                 'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+                 'ueb_id.required' => 'La UEB es obligatoria.',
+                 'ueb_id.exists' => 'La UEB seleccionada no existe.',
+            ]);
+
+            if ($validator->fails()) {
+                 // Usar ResponseFormat para errores de validación
+                 return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
+            }
+
+            DB::beginTransaction(); // Iniciar transacción
+
+            $userData = $request->only(['name', 'email', 'ueb_id']);
+
+            if ($request->filled('password')) {
+                $userData['password'] = Hash::make($request->password); // Hashear la nueva contraseña
+            }
+
+            $user->update($userData);
+
+             // Si manejas la actualización de roles, hazlo aquí
+            // if ($request->has('role_ids')) {
+            //     $user->roles()->sync($request->role_ids);
+            // }
+
+            DB::commit(); // Confirmar transacción
+
+            return ResponseFormat::response(200, 'Usuario actualizado con éxito.', $user);
+
+        } catch (ModelNotFoundException $e) {
+            return ResponseFormat::response(404, 'Usuario no encontrado.', null);
+        } catch (Exception $e) {
+            DB::rollBack(); // Revertir transacción
+            return ResponseFormat::exceptionResponse($e);
         }
-
-        // Validar los datos de entrada
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'lastname' => 'sometimes|string|max:255',
-            'ci' => 'sometimes|string|unique:users,ci,' . $user->id . '|max:255',
-            'address' => 'sometimes|string|max:255',
-            'email' => 'sometimes|string|email|unique:users,email,' . $user->id . '|max:255',
-            'phone' => 'sometimes|string|max:255',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 400);
-        }
-
-        // Actualizar el usuario
-        $user->update($request->all());
-
-        return response()->json($user);
     }
 
     /**
-     * Eliminar un usuario.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * Remove the specified resource from storage.
+     * Elimina un Usuario específico.
      */
     public function destroy($id)
     {
-        $user = User::find($id);
+        try {
+            $user = User::findOrFail($id);
 
-        if (!$user) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
+            DB::beginTransaction(); // Iniciar transacción
+
+            $user->delete(); // Usa soft delete
+
+            DB::commit(); // Confirmar transacción
+
+            return ResponseFormat::response(200, 'Usuario eliminado con éxito.', null);
+
+        } catch (ModelNotFoundException $e) {
+            return ResponseFormat::response(404, 'Usuario no encontrado.', null);
+        } catch (Exception $e) {
+             DB::rollBack(); // Revertir transacción
+             // Captura cualquier otra excepción, como restricciones de clave foránea (si el usuario está asignado a vehículos, tarjetas, cargas)
+             return ResponseFormat::response(500, 'Error al eliminar el Usuario. Puede tener elementos relacionados.', null);
+            // return ResponseFormat::exceptionResponse($e); // Otra opción para ver detalles del error
         }
-
-        // Eliminar el usuario
-        $user->delete();
-
-        return response()->json(['message' => 'Usuario eliminado correctamente']);
     }
 
-    /**
-     * Asignar un rol a un usuario.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function assignRole(Request $request, $id)
-    {
-        $user = User::find($id);
-
-        if (!$user) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
-        }
-
-        // Validar el rol
-        $validator = Validator::make($request->all(), [
-            'role_id' => 'required|exists:roles,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 400);
-        }
-
-        // Asignar el rol al usuario
-        $user->roles()->sync([$request->role_id]);
-
-        return response()->json(['message' => 'Rol asignado correctamente']);
-    }
-
-    /**
-     * Obtener los roles de un usuario.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function getUserRoles($id)
-    {
-        $user = User::with('roles')->find($id);
-
-        if (!$user) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
-        }
-
-        return response()->json($user->roles);
-    }
+    // Si tienes un método assignRole, asegúrate de que también use ResponseFormat
+    // public function assignRole(Request $request, $id)
+    // {
+    //     try {
+    //         $user = User::findOrFail($id);
+    //         // ... lógica de asignación de rol ...
+    //         return ResponseFormat::response(200, 'Rol asignado con éxito.', $user);
+    //     } catch (ModelNotFoundException $e) {
+    //         return ResponseFormat::response(404, 'Usuario no encontrado.', null);
+    //     } catch (Exception $e) {
+    //         return ResponseFormat::exceptionResponse($e);
+    //     }
+    // }
 }
-

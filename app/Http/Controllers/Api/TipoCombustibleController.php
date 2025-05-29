@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Role;
+use App\Models\TipoCombustible;
 use App\Utils\ResponseFormat; // Asegúrate de que la ruta sea correcta
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -11,11 +11,11 @@ use Illuminate\Support\Facades\Validator; // Importar Validator
 use Illuminate\Support\Facades\DB; // Importar DB
 use Exception;
 
-class RoleController extends Controller
+class TipoCombustibleController extends Controller
 {
     /**
      * Display a listing of the resource.
-     * Lista todos los Roles con paginación.
+     * Lista todos los Tipos de Combustible con paginación.
      */
     public function index(Request $request)
     {
@@ -25,16 +25,16 @@ class RoleController extends Controller
             $page = $request->input("page", 1); // Número de página actual, por defecto 1
 
             // Construir la consulta
-            $rolesQuery = Role::query();
+            $tiposQuery = TipoCombustible::query();
 
             // Aquí podrías añadir filtros si fueran necesarios
-            // Ejemplo: $rolesQuery->where('name', 'like', '%' . $request->input('searchTerm') . '%');
+            // Ejemplo: $tiposQuery->where('nombre', 'like', '%' . $request->input('searchTerm') . '%');
 
 
             // Aplicar paginación o obtener todos los resultados
             $paginated = $itemsPerPage == -1
-                ? $rolesQuery->get()
-                : $rolesQuery->paginate($itemsPerPage, ['*'], 'page', $page);
+                ? $tiposQuery->get()
+                : $tiposQuery->paginate($itemsPerPage, ['*'], 'page', $page);
 
             // Preparar metadatos de paginación
             $meta = [
@@ -45,9 +45,9 @@ class RoleController extends Controller
             ];
 
             // Obtener los elementos de la página actual
-            $roles = $itemsPerPage != -1 ? $paginated->items() : $paginated;
+            $tipos = $itemsPerPage != -1 ? $paginated->items() : $paginated;
 
-            return ResponseFormat::response(200, 'Lista de Roles obtenida con éxito.', $roles, $meta);
+            return ResponseFormat::response(200, 'Lista de Tipos de Combustible obtenida con éxito.', $tipos, $meta);
 
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
@@ -56,17 +56,22 @@ class RoleController extends Controller
 
     /**
      * Store a newly created resource in storage.
-     * Crea un nuevo Rol.
+     * Crea un nuevo Tipo de Combustible.
      */
     public function store(Request $request)
     {
         try {
             // Validación manual con Validator
             $validator = Validator::make($request->all(), [
-                'name' => 'required|string|max:255|unique:roles',
+                'nombre' => 'required|string|max:255|unique:tipo_combustibles',
+                'unidad_medida' => 'required|string|max:50',
+                'precio' => 'nullable|numeric|min:0',
             ], [
-                 'name.required' => 'El nombre del rol es obligatorio.',
-                 'name.unique' => 'El nombre del rol ya existe.',
+                 'nombre.required' => 'El nombre del tipo de combustible es obligatorio.',
+                 'nombre.unique' => 'El nombre del tipo de combustible ya existe.',
+                 'unidad_medida.required' => 'La unidad de medida es obligatoria.',
+                 'precio.numeric' => 'El precio debe ser un número.',
+                 'precio.min' => 'El precio no puede ser menor a 0.',
             ]);
 
             if ($validator->fails()) {
@@ -76,29 +81,29 @@ class RoleController extends Controller
 
             DB::beginTransaction(); // Iniciar transacción
 
-            $role = Role::create($request->all());
+            $tipo = TipoCombustible::create($request->all());
 
             DB::commit(); // Confirmar transacción
 
-            return ResponseFormat::response(201, 'Rol creado con éxito.', $role);
+            return ResponseFormat::response(201, 'Tipo de Combustible creado con éxito.', $tipo);
 
         } catch (Exception $e) {
-            DB::rollBack(); // Revertir transacción
+            DB::rollBack(); // Revertir transacción en caso de error
             return ResponseFormat::exceptionResponse($e);
         }
     }
 
     /**
      * Display the specified resource.
-     * Muestra un Rol específico.
+     * Muestra un Tipo de Combustible específico.
      */
     public function show($id)
     {
         try {
-            $role = Role::findOrFail($id);
-            return ResponseFormat::response(200, 'Rol obtenido con éxito.', $role);
+            $tipo = TipoCombustible::findOrFail($id);
+            return ResponseFormat::response(200, 'Tipo de Combustible obtenido con éxito.', $tipo);
         } catch (ModelNotFoundException $e) {
-            return ResponseFormat::response(404, 'Rol no encontrado.', null);
+            return ResponseFormat::response(404, 'Tipo de Combustible no encontrado.', null);
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
@@ -106,19 +111,24 @@ class RoleController extends Controller
 
     /**
      * Update the specified resource in storage.
-     * Actualiza un Rol específico.
+     * Actualiza un Tipo de Combustible específico.
      */
     public function update(Request $request, $id)
     {
         try {
-            $role = Role::findOrFail($id);
+            $tipo = TipoCombustible::findOrFail($id);
 
             // Validación manual con Validator
              $validator = Validator::make($request->all(), [
-                'name' => 'required|string|max:255|unique:roles,name,' . $id, // Ignora el nombre actual
+                'nombre' => 'required|string|max:255|unique:tipo_combustibles,nombre,' . $id, // Ignora el nombre actual
+                'unidad_medida' => 'required|string|max:50',
+                'precio' => 'nullable|numeric|min:0',
             ], [
-                 'name.required' => 'El nombre del rol es obligatorio.',
-                 'name.unique' => 'El nombre del rol ya existe.',
+                 'nombre.required' => 'El nombre del tipo de combustible es obligatorio.',
+                 'nombre.unique' => 'El nombre del tipo de combustible ya existe.',
+                 'unidad_medida.required' => 'La unidad de medida es obligatoria.',
+                 'precio.numeric' => 'El precio debe ser un número.',
+                 'precio.min' => 'El precio no puede ser menor a 0.',
             ]);
 
             if ($validator->fails()) {
@@ -128,14 +138,14 @@ class RoleController extends Controller
 
             DB::beginTransaction(); // Iniciar transacción
 
-            $role->update($request->all());
+            $tipo->update($request->all());
 
             DB::commit(); // Confirmar transacción
 
-            return ResponseFormat::response(200, 'Rol actualizado con éxito.', $role);
+            return ResponseFormat::response(200, 'Tipo de Combustible actualizado con éxito.', $tipo);
 
         } catch (ModelNotFoundException $e) {
-            return ResponseFormat::response(404, 'Rol no encontrado.', null);
+            return ResponseFormat::response(404, 'Tipo de Combustible no encontrado.', null);
         } catch (Exception $e) {
              DB::rollBack(); // Revertir transacción
              return ResponseFormat::exceptionResponse($e);
@@ -144,27 +154,27 @@ class RoleController extends Controller
 
     /**
      * Remove the specified resource from storage.
-     * Elimina un Rol específico.
+     * Elimina un Tipo de Combustible específico.
      */
     public function destroy($id)
     {
         try {
-            $role = Role::findOrFail($id);
+            $tipo = TipoCombustible::findOrFail($id);
 
             DB::beginTransaction(); // Iniciar transacción
 
-            $role->delete(); // Usa soft delete si está habilitado (aunque tu migración de roles no lo tiene)
+            $tipo->delete(); // Usa soft delete
 
             DB::commit(); // Confirmar transacción
 
-            return ResponseFormat::response(200, 'Rol eliminado con éxito.', null);
+            return ResponseFormat::response(200, 'Tipo de Combustible eliminado con éxito.', null);
 
         } catch (ModelNotFoundException $e) {
-            return ResponseFormat::response(404, 'Rol no encontrado.', null);
+            return ResponseFormat::response(404, 'Tipo de Combustible no encontrado.', null);
         } catch (Exception $e) {
              DB::rollBack(); // Revertir transacción
-             // Captura cualquier otra excepción, como restricciones de clave foránea (si el rol está asignado a usuarios)
-             return ResponseFormat::response(500, 'Error al eliminar el Rol. Puede tener usuarios asignados.', null);
+             // Captura cualquier otra excepción, como restricciones de clave foránea
+             return ResponseFormat::response(500, 'Error al eliminar el Tipo de Combustible. Puede tener elementos relacionados.', null);
             // return ResponseFormat::exceptionResponse($e); // Otra opción para ver detalles del error
         }
     }

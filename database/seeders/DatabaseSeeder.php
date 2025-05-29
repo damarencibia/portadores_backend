@@ -1,22 +1,28 @@
 <?php
 
-// database/seeders/DatabaseSeeder.php
-
 namespace Database\Seeders;
 
+// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    public function run()
+    /**
+     * Seed the application's database.
+     */
+    public function run(): void
     {
+        // Llama a los seeders en el orden correcto para respetar las claves foráneas
         $this->call([
+            UebSeeder::class,
+            TipoCombustibleSeeder::class,
             RoleSeeder::class,
-            UserSeeder::class,
-            CategorySeeder::class,
-            SubcategorySeeder::class,
-            ProductSeeder::class,
-            ImageSeeder::class,
+            UserSeeder::class, // User depende de Ueb
+            VehiculoSeeder::class, // Vehiculo depende de Ueb, TipoCombustible, User
+            TarjetaCombustibleSeeder::class, // TarjetaCombustible depende de TipoCombustible, Vehiculo, Ueb, User
+            CargaCombustibleSeeder::class, // CargaCombustible depende de TipoCombustible, User, TarjetaCombustible
+            // Agrega aquí otros seeders si los creas
         ]);
     }
 }
+

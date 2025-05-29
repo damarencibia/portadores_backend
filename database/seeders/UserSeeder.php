@@ -1,36 +1,84 @@
 <?php
 
-// database/seeders/UserSeeder.php
-
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\User;
-use App\Models\Role;
+use App\Models\Ueb; // Importar Ueb
+use App\Models\Role; // Importar Role
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
 
 class UserSeeder extends Seeder
 {
-    public function run()
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
     {
-        // Obtener los roles
-        $adminRole = Role::where('name', 'admin')->first();
-        $clientRole = Role::where('name', 'client')->first();
+        // Asegurarse de que haya UEBs y Roles creados
+        $uebs = Ueb::all();
+        $roles = Role::all();
 
-        // Crear un usuario admin
-        $admin = User::create([
+        if ($uebs->isEmpty()) {
+            $this->call(UebSeeder::class);
+            $uebs = Ueb::all();
+        }
+
+        if ($roles->isEmpty()) {
+             $this->call(RoleSeeder::class);
+             $roles = Role::all();
+        }
+
+
+        // Crea un usuario administrador
+        $adminUser = User::factory()->create([
             'name' => 'Admin User',
-            'lastname' => 'Admin Lastname',
-            'ci' => '1234567890',
-            'address' => 'Admin Address',
             'email' => 'admin@example.com',
-            'phone' => '1234567890',
-            // 'password' => bcrypt('password'), // Descomenta si tienes la columna password
+            'ueb_id' => $uebs->random()->id, // Asigna a una UEB aleatoria
         ]);
-        $admin->roles()->attach($adminRole); // Asignar rol de admin
+        $adminRole = $roles->where('name', 'admin')->first();
+        if ($adminRole) {
+             $adminUser->roles()->attach($adminRole);
+        }
 
-        // Crear varios usuarios client
-        User::factory()->count(10)->create()->each(function ($user) use ($clientRole) {
-            $user->roles()->attach($clientRole); // Asignar rol de client
+
+        // Crea usuarios para cada UEB y asigna roles
+        $uebs->each(function ($ueb) use ($roles) {
+            // Crea un responsable por UEB
+            $responsable = User::factory()->create([
+                'ueb_id' => $ueb->id,
+            ]);
+            $responsableRole = $roles->where('name', 'responsable_ueb')->first();
+             if ($responsableRole) {
+                $responsable->roles()->attach($responsableRole);
+             }
+
+
+            // Crea algunos operadores de datos por UEB
+            User::factory()->count(3)->create([
+                'ueb_id' => $ueb->id,
+            ])->each(function ($user) use ($roles) {
+                $operadorRole = $roles->where('name', 'operador_datos')->first();
+                 if ($operadorRole) {
+                    $user->roles()->attach($operadorRole);
+                 }
+            });
+
+             // Crea algunos usuarios de consulta por UEB
+            User::factory()->count(2)->create([
+                'ueb_id' => $ueb->id,
+            ])->each(function ($user) use ($roles) {
+                $consultaRole = $roles->where('name', 'consulta')->first();
+                 if ($consultaRole) {
+                    $user->roles()->attach($consultaRole);
+                 }
+            });
         });
+
+        // Crea algunos usuarios sin rol específico inicialmente
+        User::factory()->count(10)->create([
+             'ueb_id' => $uebs->random()->id,
+        ]);
     }
 }
+

@@ -14,17 +14,23 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
-        'lastname',
-        'ci',
-        'address',
         'email',
-        'phone',
+        'password',
+        'ueb_id',
     ];
 
     protected $hidden = [
+        'password',
+        'remember_token',
         'created_at',
         'updated_at'
     ];
+
+    // Relación con UEB (asumiendo que existe un modelo Ueb)
+    public function ueb()
+    {
+        return $this->belongsTo(Ueb::class);
+    }
 
     // Relación muchos a muchos con Role
     public function roles()
