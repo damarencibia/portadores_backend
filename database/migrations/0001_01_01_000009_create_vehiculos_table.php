@@ -27,7 +27,7 @@ return new class extends Migration
             $table->string('chapa')->unique(); // Número de matrícula (chapa), único
             $table->string('numero_motor')->unique(); // Número de motor único
             $table->boolean('activo')->default(true); // Indica si el vehículo está activo
-            $table->foreignId('ueb_id')->constrained('uebs')->onDelete('cascade'); // Clave foránea a la tabla 'uebs'
+            $table->foreignId('empresa_id')->constrained('empresas')->onDelete('cascade'); // Clave foránea a la tabla 'uebs'
             $table->string('numero_chasis')->unique(); // Número de chasis único
             $table->string('estado_tecnico'); // Estado técnico
             // Clave foránea a usuario, puede ser nulo si no hay un usuario asignado permanentemente

@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('tipo_combustible_id')->constrained('tipo_combustibles')->onDelete('cascade');;
             $table->date('fecha_vencimiento');
             $table->foreignId('vehiculo_id')->nullable()->constrained('vehiculos')->onDelete('cascade');;
-            $table->foreignId('ueb_id')->constrained('uebs');
+            // $table->foreignId('empresa_id')->constrained('emrpesas');
             $table->boolean('activa')->default(true);
             $table->foreignId('user_id')->constrained('users');
             $table->timestamps();

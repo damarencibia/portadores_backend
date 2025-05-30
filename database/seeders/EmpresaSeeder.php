@@ -2,19 +2,19 @@
 
 namespace Database\Seeders;
 
-use App\Models\Ueb;
+use App\Models\Empresa;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
-class UebSeeder extends Seeder
+class EmpresaSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        // Crea 5 UEBs usando el factory
-        Ueb::factory()->count(5)->create();
+        // Crea 5 Empresas usando el factory
+        Empresa::factory()->count(5)->create();
     }
 }
 

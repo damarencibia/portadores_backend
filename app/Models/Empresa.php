@@ -4,9 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+// use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Ueb extends Model
+class Empresa extends Model
 {
     use HasFactory;
 
@@ -31,10 +31,10 @@ class Ueb extends Model
         return $this->hasMany(Vehiculo::class);
     }
 
-    public function tarjetasCombustible()
-    {
-        return $this->hasMany(TarjetaCombustible::class);
-    }
+    // public function tarjetasCombustible()
+    // {
+    //     return $this->hasMany(TarjetaCombustible::class);
+    // }
 
     protected static function generateAutoIncrementCode()
     {

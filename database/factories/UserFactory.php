@@ -3,7 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\User;
-use App\Models\Ueb; // Importar el modelo Ueb
+use App\Models\Empresa; // Importar el modelo Empresa
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -25,7 +25,7 @@ class UserFactory extends Factory
             'email_verified_at' => now(), // Fecha de verificación de correo (ahora)
             'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
             'remember_token' => Str::random(10), // Token "recordarme"
-            'ueb_id' => Ueb::factory(), // Crea una nueva UEB o usa una existente
+            'empresa_id' => Empresa::factory(), // Crea una nueva Empresa o usa una existente
             // El rol se asignará en el Seeder
         ];
     }

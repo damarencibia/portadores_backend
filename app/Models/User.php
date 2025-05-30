@@ -16,7 +16,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'ueb_id',
+        'Empresa_id',
     ];
 
     protected $hidden = [
@@ -26,10 +26,10 @@ class User extends Authenticatable
         'updated_at'
     ];
 
-    // Relación con UEB (asumiendo que existe un modelo Ueb)
-    public function ueb()
+    // Relación con Empresa (asumiendo que existe un modelo Empresa)
+    public function empresa()
     {
-        return $this->belongsTo(Ueb::class);
+        return $this->belongsTo(Empresa::class);
     }
 
     // Relación muchos a muchos con Role

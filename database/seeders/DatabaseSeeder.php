@@ -14,10 +14,11 @@ class DatabaseSeeder extends Seeder
     {
         // Llama a los seeders en el orden correcto para respetar las claves foráneas
         $this->call([
-            UebSeeder::class,
+            EmpresaSeeder::class,
             TipoCombustibleSeeder::class,
             RoleSeeder::class,
             UserSeeder::class, // User depende de Ueb
+            ChoferSeeder::class,
             VehiculoSeeder::class, // Vehiculo depende de Ueb, TipoCombustible, User
             TarjetaCombustibleSeeder::class, // TarjetaCombustible depende de TipoCombustible, Vehiculo, Ueb, User
             CargaCombustibleSeeder::class, // CargaCombustible depende de TipoCombustible, User, TarjetaCombustible

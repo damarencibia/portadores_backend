@@ -4,8 +4,9 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\ChoferController;
 use App\Http\Controllers\Api\RoleController;
-use App\Http\Controllers\Api\UebController;
+use App\Http\Controllers\Api\EmpresaController;
 use App\Http\Controllers\Api\TipoCombustibleController;
 use App\Http\Controllers\Api\VehiculoController;
 use App\Http\Controllers\Api\TarjetaCombustibleController;
@@ -43,6 +44,14 @@ Route::prefix('users')->group(function () {
     // Route::post('/{id}/assign-role', [UserController::class, 'assignRole']);
 });
 
+Route::prefix('chofers')->group(function () {
+    Route::get('/', [ChoferController::class, 'index']); // Lista todos los chofers
+    Route::get('/{id}', [ChoferController::class, 'show']); // Muestra un chofer por ID
+    Route::post('/', [ChoferController::class, 'store']); // Crea un nuevo chofer
+    Route::put('/{id}', [ChoferController::class, 'update']); // Actualiza un chofer por ID
+    Route::delete('/{id}', [ChoferController::class, 'destroy']); // Elimina un chofer por ID
+});
+
 // Rutas para la gestión de Roles
 Route::prefix('roles')->group(function () {
     Route::get('/', [RoleController::class, 'index']); // Lista todos los roles
@@ -52,8 +61,8 @@ Route::prefix('roles')->group(function () {
     Route::delete('/{id}', [RoleController::class, 'destroy']); // Elimina un rol por ID
 });
 
-// Rutas Resource para la gestión de UEBs
-Route::apiResource('uebs', UebController::class);
+// Rutas Resource para la gestión de empresas
+Route::apiResource('empresas', EmpresaController::class);
 
 // Rutas Resource para la gestión de Tipos de Combustible
 Route::apiResource('tipo-combustibles', TipoCombustibleController::class);
@@ -70,7 +79,7 @@ Route::apiResource('carga-combustibles', CargaCombustibleController::class);
 // Puedes agrupar rutas relacionadas por middleware si es necesario (ej: 'auth:sanctum', 'role:admin')
 /*
 Route::middleware('auth:sanctum')->group(function () {
-    Route::apiResource('uebs', UebController::class);
+    Route::apiResource('empresas', EmpresaController::class);
     // etc.
 });
 */

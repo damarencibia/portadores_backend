@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Ueb;
+use App\Models\Empresa;
 use App\Utils\ResponseFormat; // Asegúrate de que la ruta sea correcta
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -12,11 +12,11 @@ use Illuminate\Support\Facades\DB;
 
 use Exception;
 
-class UebController extends Controller
+class EmpresaController extends Controller
 {
     /**
      * Display a listing of the resource.
-     * Lista todas las UEBs con paginación.
+     * Lista todas las Empresas con paginación.
      */
     public function index(Request $request)
     {
@@ -26,15 +26,15 @@ class UebController extends Controller
             $page = $request->input("page", 1); // Número de página actual, por defecto 1
 
             // Construir la consulta
-            $uebsQuery = Ueb::query();
+            $empresasQuery = Empresa::query();
 
-            // Aquí podrías añadir filtros si fueran necesarios para UEBs
-            // Ejemplo: $uebsQuery->where('nombre', 'like', '%' . $request->input('searchTerm') . '%');
+            // Aquí podrías añadir filtros si fueran necesarios para Empresas
+            // Ejemplo: $empresasQuery->where('nombre', 'like', '%' . $request->input('searchTerm') . '%');
 
             // Aplicar paginación o obtener todos los resultados
             $paginated = $itemsPerPage == -1
-                ? $uebsQuery->get()
-                : $uebsQuery->paginate($itemsPerPage, ['*'], 'page', $page);
+                ? $empresasQuery->get()
+                : $empresasQuery->paginate($itemsPerPage, ['*'], 'page', $page);
 
             // Preparar metadatos de paginación
             $meta = [
@@ -45,9 +45,9 @@ class UebController extends Controller
             ];
 
             // Obtener los elementos de la página actual
-            $uebs = $itemsPerPage != -1 ? $paginated->items() : $paginated;
+            $Empresas = $itemsPerPage != -1 ? $paginated->items() : $paginated;
 
-            return ResponseFormat::response(200, 'Lista de UEBs obtenida con éxito.', $uebs, $meta);
+            return ResponseFormat::response(200, 'Lista de Empresas obtenida con éxito.', $Empresas, $meta);
 
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
@@ -56,7 +56,7 @@ class UebController extends Controller
 
     /**
      * Store a newly created resource in storage.
-     * Crea una nueva UEB.
+     * Crea una nueva Empresa.
      */
     public function store(Request $request)
     {
@@ -80,14 +80,14 @@ class UebController extends Controller
 
             DB::beginTransaction();
 
-            // Crear la Ueb
-            $ueb = Ueb::create($request->all());
+            // Crear la Empresa
+            $Empresa = Empresa::create($request->all());
 
             DB::commit();
             return ResponseFormat::response(
                 201,
-                'Ueb creada exitosamente',
-                ['ueb_id' => $ueb->getKey()]
+                'Empresa creada exitosamente',
+                ['Empresa_id' => $Empresa->getKey()]
             );
 
         } catch (\Exception $e) {
@@ -98,15 +98,15 @@ class UebController extends Controller
 
     /**
      * Display the specified resource.
-     * Muestra una UEB específica.
+     * Muestra una Empresa específica.
      */
     public function show($id)
     {
         try {
-            $ueb = Ueb::findOrFail($id);
-            return ResponseFormat::response(200, 'UEB obtenida con éxito.', $ueb);
+            $Empresa = Empresa::findOrFail($id);
+            return ResponseFormat::response(200, 'Empresa obtenida con éxito.', $Empresa);
         } catch (ModelNotFoundException $e) {
-            return ResponseFormat::response(404, 'UEB no encontrada.', null);
+            return ResponseFormat::response(404, 'Empresa no encontrada.', null);
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
@@ -114,14 +114,14 @@ class UebController extends Controller
 
     /**
      * Update the specified resource in storage.
-     * Actualiza una UEB específica.
+     * Actualiza una Empresa específica.
      */
     public function update(Request $request, $id)
     {
         try {
-            $ueb = Ueb::find($id);
+            $Empresa = Empresa::find($id);
 
-            if (!$ueb) {
+            if (!$Empresa) {
                 return ResponseFormat::response(404, 'Producto no encontrado');
             }
             
@@ -140,9 +140,9 @@ class UebController extends Controller
             }
             $data = $request->all();
 
-            $ueb->update($data);
+            $Empresa->update($data);
 
-            return ResponseFormat::response(200, 'UEB actualizada con éxito.', $ueb);
+            return ResponseFormat::response(200, 'Empresa actualizada con éxito.', $Empresa);
         }catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
@@ -150,18 +150,18 @@ class UebController extends Controller
 
     /**
      * Remove the specified resource from storage.
-     * Elimina una UEB específica.
+     * Elimina una Empresa específica.
      */
     public function destroy($id)
     {
         try {
-            $ueb = Ueb::find($id);
-            if (!$ueb) {
-                return ResponseFormat::response(404, 'Ueb no encontrada');
+            $Empresa = Empresa::find($id);
+            if (!$Empresa) {
+                return ResponseFormat::response(404, 'Empresa no encontrada');
             }
 
-            $ueb->delete();
-            return ResponseFormat::response(200, 'Ueb eliminada correctamente', null, [
+            $Empresa->delete();
+            return ResponseFormat::response(200, 'Empresa eliminada correctamente', null, [
                 'deleted_id' => $id
             ]);
         } catch (Exception $e) {

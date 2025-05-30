@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Vehiculo;
-use App\Models\Ueb; // Importar Ueb
+use App\Models\Empresa; // Importar Empresa
 use App\Models\TipoCombustible; // Importar TipoCombustible
 use App\Models\User; // Importar User
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -16,14 +16,14 @@ class VehiculoSeeder extends Seeder
      */
     public function run(): void
     {
-        // Asegurarse de que haya UEBs, Tipos de Combustible y Usuarios creados
-        $uebs = Ueb::all();
+        // Asegurarse de que haya empresas, Tipos de Combustible y Usuarios creados
+        $empresas = Empresa::all();
         $tiposCombustible = TipoCombustible::all();
         $users = User::all();
 
-         if ($uebs->isEmpty()) {
-            $this->call(UebSeeder::class);
-            $uebs = Ueb::all();
+         if ($empresas->isEmpty()) {
+            $this->call(empresaseeder::class);
+            $empresas = Empresa::all();
         }
 
         if ($tiposCombustible->isEmpty()) {
@@ -37,9 +37,9 @@ class VehiculoSeeder extends Seeder
         }
 
 
-        // Crea 20 vehículos, asignándolos a UEBs, Tipos de Combustible y Usuarios aleatorios (o nulo)
+        // Crea 20 vehículos, asignándolos a empresas, Tipos de Combustible y Usuarios aleatorios (o nulo)
         Vehiculo::factory()->count(20)->create([
-            'ueb_id' => $uebs->random()->id,
+            'empresa_id' => $empresas->random()->id,
             'tipo_combustible_id' => $tiposCombustible->random()->id,
             // Asigna un usuario aleatorio o null
             'user_id' => $users->random()->id ?? null, // Puede ser nulo

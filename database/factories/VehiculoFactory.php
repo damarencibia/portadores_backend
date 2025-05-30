@@ -4,7 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Vehiculo;
 use App\Models\TipoCombustible; // Importar el modelo TipoCombustible
-use App\Models\Ueb; // Importar el modelo Ueb
+use App\Models\Empresa; // Importar el modelo Empresa
 use App\Models\User; // Importar el modelo User
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,9 +20,9 @@ class VehiculoFactory extends Factory
      */
     public function definition(): array
     {
-         // Asegurarse de que haya al menos un TipoCombustible y una Ueb creados
+         // Asegurarse de que haya al menos un TipoCombustible y una Empresa creados
         $tipoCombustible = TipoCombustible::inRandomOrder()->first() ?? TipoCombustible::factory()->create();
-        $ueb = Ueb::inRandomOrder()->first() ?? Ueb::factory()->create();
+        $Empresa = Empresa::inRandomOrder()->first() ?? Empresa::factory()->create();
         $user = User::inRandomOrder()->first(); // Puede ser nulo si no hay usuarios aún
 
         return [
@@ -39,7 +39,7 @@ class VehiculoFactory extends Factory
             'chapa' => $this->faker->unique()->regexify('[A-Z]{3}[0-9]{3}'), // Chapa única (ej: ABC123)
             'numero_motor' => $this->faker->unique()->uuid(), // Número de motor único
             'activo' => $this->faker->boolean(), // Indica si está activo
-            'ueb_id' => $ueb->id, // Usar una UEB existente
+            'empresa_id' => $Empresa->id, // Usar una Empresa existente
             'numero_chasis' => $this->faker->unique()->uuid(), // Número de chasis único
             'estado_tecnico' => $this->faker->randomElement(['Operativo', 'En Reparación', 'Baja']), // Estado técnico
             // Asigna un usuario aleatorio existente o null
