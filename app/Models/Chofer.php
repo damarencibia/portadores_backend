@@ -4,30 +4,45 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
 
 class Chofer extends Model
 {
     use HasFactory;
 
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'choferes'; // Especifica el nombre correcto de la tabla
+    protected $table = 'choferes';
 
     protected $fillable = [
         'nombre',
         'apellidos',
         'email',
-        'empresa_id', // Cambiado de 'ueb_id' para coincidir con la migración y factory
+        'empresa_id',
     ];
 
-    // Relación con Empresa (asumiendo que existe un modelo Empresa)
-    public function empresa()
+    public function empresa(): BelongsTo
     {
-        // Asegúrate de que la clave foránea aquí coincida con tu migración.
-        // Si en la migración es 'empresa_id', aquí también debería serlo (o Laravel lo infiere correctamente).
         return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
+
+    /**
+     * Get the vehicle associated with the chofer.
+     * Based on "Cada chofer tiene asociado un solo vehiculo y viceversa",
+     * the foreign key `chofer_id` is on the `vehiculos` table.
+     */
+    public function vehiculo(): HasOne
+    {
+        // Un chofer tiene un vehículo, y la clave foránea (chofer_id) está en la tabla 'vehiculos'.
+        return $this->hasOne(Vehiculo::class); // Laravel inferirá 'chofer_id' en el modelo Vehiculo
+    }
+
+    /**
+     * Get the fuel cards for the chofer.
+     */
+    public function tarjetasCombustible(): HasMany
+    {
+        return $this->hasMany(TarjetaCombustible::class, 'chofer_id');
     }
 }

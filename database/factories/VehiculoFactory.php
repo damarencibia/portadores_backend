@@ -3,9 +3,9 @@
 namespace Database\Factories;
 
 use App\Models\Vehiculo;
-use App\Models\TipoCombustible; // Importar el modelo TipoCombustible
-use App\Models\Empresa; // Importar el modelo Empresa
-use App\Models\User; // Importar el modelo User
+use App\Models\TipoCombustible;
+use App\Models\Empresa;
+use App\Models\Chofer; // ¡Importar el modelo Chofer!
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,31 +20,46 @@ class VehiculoFactory extends Factory
      */
     public function definition(): array
     {
-         // Asegurarse de que haya al menos un TipoCombustible y una Empresa creados
+        // Asegurarse de que haya al menos un TipoCombustible, una Empresa y un Chofer creados
         $tipoCombustible = TipoCombustible::inRandomOrder()->first() ?? TipoCombustible::factory()->create();
-        $Empresa = Empresa::inRandomOrder()->first() ?? Empresa::factory()->create();
-        $user = User::inRandomOrder()->first(); // Puede ser nulo si no hay usuarios aún
+        $empresa = Empresa::inRandomOrder()->first() ?? Empresa::factory()->create();
+        // Creamos un chofer para asignárselo al vehículo.
+        // Aseguramos que el chofer creado no tenga ya un vehículo asignado (si es que estás controlando eso en ChoferFactory).
+        // Para la relación 1:1, es importante que el chofer_id en el vehículo sea único.
+        $chofer = Chofer::factory()->create(); // Crea un nuevo chofer para este vehículo
 
         return [
-            'numero_interno' => $this->faker->unique()->randomNumber(5), // Número interno único
-            'marca' => $this->faker->word(), // Marca del vehículo
-            'modelo' => $this->faker->word(), // Modelo del vehículo
-            'ano' => $this->faker->year(), // Año de fabricación
-            'tipo_combustible_id' => $tipoCombustible->id, // Usar un TipoCombustible existente
-            'indice_consumo' => $this->faker->randomFloat(2, 5, 20), // Índice de consumo (L/100km)
-            'prueba_litro' => $this->faker->randomFloat(2, 5, 20), // Prueba por litro (km/L)
-            'ficav' => $this->faker->boolean(), // FICAV (boolean según tu migración)
-            'capacidad_tanque' => $this->faker->numberBetween(30, 100), // Capacidad del tanque
-            'color' => $this->faker->colorName(), // Color del vehículo
-            'chapa' => $this->faker->unique()->regexify('[A-Z]{3}[0-9]{3}'), // Chapa única (ej: ABC123)
-            'numero_motor' => $this->faker->unique()->uuid(), // Número de motor único
-            'activo' => $this->faker->boolean(), // Indica si está activo
-            'empresa_id' => $Empresa->id, // Usar una Empresa existente
-            'numero_chasis' => $this->faker->unique()->uuid(), // Número de chasis único
-            'estado_tecnico' => $this->faker->randomElement(['Operativo', 'En Reparación', 'Baja']), // Estado técnico
-            // Asigna un usuario aleatorio existente o null
-            'user_id' => $this->faker->boolean(70) ? ($user ? $user->id : null) : null, // 70% de probabilidad de asignar un usuario existente
+            'numero_interno' => $this->faker->unique()->randomNumber(5),
+            'marca' => $this->faker->word(),
+            'modelo' => $this->faker->word(),
+            'tipo_vehiculo' => $this->faker->randomElement(['Auto', 'Camioneta', 'Moto', 'Camión']),
+            'ano' => $this->faker->year(),
+            'tipo_combustible_id' => $tipoCombustible->id,
+            'indice_consumo' => $this->faker->randomFloat(2, 5, 20),
+            'prueba_litro' => $this->faker->randomFloat(2, 5, 20),
+            'ficav' => $this->faker->boolean(),
+            'capacidad_tanque' => $this->faker->numberBetween(30, 100),
+            'color' => $this->faker->colorName(),
+            'chapa' => $this->faker->unique()->regexify('[A-Z]{3}[0-9]{3}'),
+            'numero_motor' => $this->faker->unique()->uuid(),
+            'empresa_id' => $empresa->id,
+            'numero_chasis' => $this->faker->unique()->uuid(),
+            'estado_tecnico' => $this->faker->randomElement(['activo', 'paralizado', 'en_reparacion']),
+            'chofer_id' => $chofer->id, // ¡NUEVO! Asignar el ID del chofer
         ];
     }
-}
 
+    /**
+     * Configure the model factory.
+     * Ensure that when a Vehiculo is created, its associated Chofer is also created
+     * and linked, and vice-versa if needed.
+     */
+    public function configure()
+    {
+        return $this->afterCreating(function (Vehiculo $vehiculo) {
+            // Si el chofer_id ya fue asignado en la definición, no hacemos nada.
+            // Esto es para asegurar que el chofer creado en la definición se vincule con el vehículo.
+            // Si el chofer_id es nullable y no se asigna en la definición, podrías crear un chofer aquí.
+        });
+    }
+}

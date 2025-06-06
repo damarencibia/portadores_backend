@@ -3,9 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\CargaCombustible;
-use App\Models\TipoCombustible; // Importar TipoCombustible
-use App\Models\User; // Importar User
-use App\Models\TarjetaCombustible; // Importar TarjetaCombustible
+use App\Models\TipoCombustible;
+use App\Models\User;
+use App\Models\TarjetaCombustible;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -16,30 +16,32 @@ class CargaCombustibleSeeder extends Seeder
      */
     public function run(): void
     {
-        // Asegurarse de que haya Tipos de Combustible, Usuarios y Tarjetas de Combustible creados
-        $tiposCombustible = TipoCombustible::all();
+        // Asegurarse de que haya Usuarios y Tarjetas de Combustible creados.
+        // El TipoCombustible se infiere de la TarjetaCombustible.
         $users = User::all();
         $tarjetas = TarjetaCombustible::all();
 
-         if ($tiposCombustible->isEmpty()) {
-            $this->call(TipoCombustibleSeeder::class);
-            $tiposCombustible = TipoCombustible::all();
-        }
-
-         if ($users->isEmpty()) {
+        // Llama a los seeders necesarios si las tablas están vacías
+        if ($users->isEmpty()) {
             $this->call(UserSeeder::class);
             $users = User::all();
         }
 
-         if ($tarjetas->isEmpty()) {
+        if ($tarjetas->isEmpty()) {
+            // Asegúrate de que TarjetaCombustibleSeeder crea tarjetas con chofer y vehículo
             $this->call(TarjetaCombustibleSeeder::class);
             $tarjetas = TarjetaCombustible::all();
         }
 
+        // Si no hay usuarios o tarjetas, no podemos crear cargas.
+        if ($users->isEmpty() || $tarjetas->isEmpty()) {
+            $this->command->info('No hay usuarios o tarjetas de combustible para crear Cargas de Combustible.');
+            return;
+        }
 
         // Crea 100 cargas de combustible
         CargaCombustible::factory()->count(100)->create([
-            'tipo_combustible_id' => $tiposCombustible->random()->id,
+            // 'tipo_combustible_id' ya no se asigna directamente aquí, se infiere de la tarjeta
             'registrado_por_id' => $users->random()->id,
             // Asigna un validador aleatorio o null
             'validado_por_id' => $users->random()->id ?? null, // Puede ser nulo
@@ -48,4 +50,3 @@ class CargaCombustibleSeeder extends Seeder
         ]);
     }
 }
-

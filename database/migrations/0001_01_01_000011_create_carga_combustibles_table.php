@@ -8,41 +8,44 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     * Crea la tabla 'carga_combustibles'.
+     * Crea la tabla 'carga_combustibles' (solo para entradas/recargas).
      */
     public function up(): void
     {
         Schema::create('carga_combustibles', function (Blueprint $table) {
-            $table->id(); // Columna ID autoincremental
-            $table->date('fecha'); // Fecha de la carga
-            $table->time('hora')->nullable(); // Hora de la carga, opcional
-            // Añadir la clave foránea para tipo_combustible_id
-            $table->foreignId('tipo_combustible_id')->constrained('tipo_combustibles')->onDelete('restrict');
-            $table->decimal('cantidad', 10, 2); // Cantidad de combustible cargado
-            $table->integer('odometro'); // Lectura del odómetro al momento de la carga
-            $table->string('lugar')->nullable(); // Lugar donde se realizó la carga, opcional
-            $table->string('numero_tarjeta')->nullable(); // Número de tarjeta (puede ser redundante si se usa la FK tarjeta_combustible_id)
-            $table->string('no_chip')->nullable(); // Número de chip, opcional
-            $table->foreignId('registrado_por_id')->constrained('users')->onDelete('restrict'); // Clave foránea al usuario que registró
-            // Clave foránea al usuario que validó, puede ser nulo si aún no se valida
-            $table->foreignId('validado_por_id')->nullable()->constrained('users')->onDelete('set null');
-            $table->timestamp('fecha_validacion')->nullable(); // Fecha y hora de validación, nulo si no validado
-            $table->string('estado')->default('Pendiente'); // Estado de la carga (ej: pendiente, validada, rechazada)
-            $table->decimal('importe', 10, 2)->nullable(); // Importe de la carga, opcional
-            // Clave foránea a la tarjeta de combustible usada
-            $table->foreignId('tarjeta_combustible_id')->nullable()->constrained('tarjeta_combustibles')->onDelete('restrict');
-            $table->timestamps(); // Columnas created_at y updated_at
-            // $table->softDeletes(); // Añade la columna 'deleted_at' para Soft Deletes
+            $table->id();
+            $table->date('fecha');
+            $table->time('hora')->nullable();
 
-            // Consideración: También podrías querer una FK a Vehiculo aquí, ya que una carga está asociada a un vehículo específico.
-            // Si la FK a TarjetaCombustible ya implica el vehículo, podría ser suficiente, pero a veces es útil tener la FK directa.
-            // $table->foreignId('vehiculo_id')->constrained('vehiculos')->onDelete('restrict');
+            $table->foreignId('tarjeta_combustible_id')->constrained('tarjeta_combustibles')->onDelete('restrict');
+            $table->decimal('cantidad', 10, 2); // Cantidad de combustible CARGADO
+            $table->decimal('importe', 10, 2); // Importe de la carga (cantidad * precio)
+
+            $table->decimal('saldo_monetario_anterior', 10, 2)->nullable();
+            $table->decimal('cantidad_combustible_anterior', 10, 2)->nullable();
+
+            $table->decimal('saldo_monetario_al_momento_carga', 10, 2)->nullable();
+            $table->decimal('cantidad_combustible_al_momento_carga', 10, 2)->nullable();
+
+
+            $table->integer('odometro')->nullable();
+            $table->string('lugar')->nullable(); // Lugar donde se realizó la carga, opcional
+            $table->string('motivo')->nullable(); // Motivo por el que se realizó la carga
+
+            $table->string('no_chip')->nullable(); // Número de chip/transacción, opcional
+
+            $table->foreignId('registrado_por_id')->constrained('users')->onDelete('restrict');
+            $table->foreignId('validado_por_id')->nullable()->constrained('users')->onDelete('set null');
+            $table->timestamp('fecha_validacion')->nullable();
+            $table->string('estado')->default('Pendiente');
+
+            $table->timestamps();
+            // $table->softDeletes(); // Descomentar si usas Soft Deletes
         });
     }
 
     /**
      * Reverse the migrations.
-     * Elimina la tabla 'carga_combustibles'.
      */
     public function down(): void
     {

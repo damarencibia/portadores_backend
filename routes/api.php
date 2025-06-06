@@ -9,8 +9,10 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\EmpresaController;
 use App\Http\Controllers\Api\TipoCombustibleController;
 use App\Http\Controllers\Api\VehiculoController;
+use App\Http\Controllers\Api\VehiculoInoperatividadController; 
 use App\Http\Controllers\Api\TarjetaCombustibleController;
 use App\Http\Controllers\Api\CargaCombustibleController;
+use App\Http\Controllers\Api\RetiroCombustibleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -44,7 +46,7 @@ Route::prefix('users')->group(function () {
     // Route::post('/{id}/assign-role', [UserController::class, 'assignRole']);
 });
 
-Route::prefix('chofers')->group(function () {
+Route::prefix('choferes')->group(function () {
     Route::get('/', [ChoferController::class, 'index']); // Lista todos los chofers
     Route::get('/{id}', [ChoferController::class, 'show']); // Muestra un chofer por ID
     Route::post('/', [ChoferController::class, 'store']); // Crea un nuevo chofer
@@ -67,15 +69,22 @@ Route::apiResource('empresas', EmpresaController::class);
 // Rutas Resource para la gestión de Tipos de Combustible
 Route::apiResource('tipo-combustibles', TipoCombustibleController::class);
 
+// Rutas para Inoperatividades/Averías
+Route::apiResource('vehiculo-inoperatividades', VehiculoInoperatividadController::class);
+
+Route::get('/vehiculos/reportes/cdt', [VehiculoController::class, 'calculateCdt']);
 // Rutas Resource para la gestión de Vehículos
 Route::apiResource('vehiculos', VehiculoController::class);
 
+Route::get('tarjeta-combustibles/reportes/consumo-mes', [TarjetaCombustibleController::class, 'calculateConsumoCombustible']);
 // Rutas Resource para la gestión de Tarjetas de Combustible
 Route::apiResource('tarjeta-combustibles', TarjetaCombustibleController::class);
 
 // Rutas Resource para la gestión de Cargas de Combustible
 Route::apiResource('carga-combustibles', CargaCombustibleController::class);
 
+// Rutas Resource para la gestión de Retiros de Combustible
+Route::apiResource('retiros-combustible', RetiroCombustibleController::class);
 // Puedes agrupar rutas relacionadas por middleware si es necesario (ej: 'auth:sanctum', 'role:admin')
 /*
 Route::middleware('auth:sanctum')->group(function () {

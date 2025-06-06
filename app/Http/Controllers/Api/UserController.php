@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Ueb; // Importar Ueb para validación
+use App\Models\Empresa; // Importar Empresa para validación
 use App\Utils\ResponseFormat; // Asegúrate de que la ruta sea correcta
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -27,11 +27,11 @@ class UserController extends Controller
             $page = $request->input("page", 1); // Número de página actual, por defecto 1
 
             // Construir la consulta con relaciones cargadas
-            $usersQuery = User::with(['ueb', 'roles']);
+            $usersQuery = User::with(['empresa', 'roles']);
 
              // Aquí podrías añadir filtros si fueran necesarios
             // Ejemplo: $usersQuery->where('name', 'like', '%' . $request->input('searchTerm') . '%');
-            // Ejemplo: $usersQuery->where('ueb_id', $request->input('ueb_id'));
+            // Ejemplo: $usersQuery->where('Empresa_id', $request->input('Empresa_id'));
 
 
             // Aplicar paginación o obtener todos los resultados
@@ -69,7 +69,7 @@ class UserController extends Controller
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users',
                 'password' => 'required|string|min:8',
-                'ueb_id' => 'required|exists:uebs,id', // Asegura que la UEB exista
+                'empresa_id' => 'required|exists:empresas,id', // Asegura que la Empresa exista
                 // Puedes añadir validación para roles si los asignas aquí
             ], [
                  'name.required' => 'El nombre del usuario es obligatorio.',
@@ -78,8 +78,8 @@ class UserController extends Controller
                  'email.unique' => 'El correo electrónico ya está registrado.',
                  'password.required' => 'La contraseña es obligatoria.',
                  'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
-                 'ueb_id.required' => 'La UEB es obligatoria.',
-                 'ueb_id.exists' => 'La UEB seleccionada no existe.',
+                 'empresa_id.required' => 'La Empresa es obligatoria.',
+                 'empresa_id.exists' => 'La Empresa seleccionada no existe.',
             ]);
 
             if ($validator->fails()) {
@@ -93,7 +93,7 @@ class UserController extends Controller
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password), // Hashear la contraseña
-                'ueb_id' => $request->ueb_id,
+                'empresa_id' => $request->empresa_id,
             ]);
 
             // Si manejas la asignación de roles al crear usuario, hazlo aquí
@@ -118,8 +118,8 @@ class UserController extends Controller
     public function show($id)
     {
         try {
-            // Carga la relación 'ueb' y 'roles'
-            $user = User::with(['ueb', 'roles'])->findOrFail($id);
+            // Carga la relación 'Empresa' y 'roles'
+            $user = User::with(['empresa', 'roles'])->findOrFail($id);
             return ResponseFormat::response(200, 'Usuario obtenido con éxito.', $user);
         } catch (ModelNotFoundException $e) {
             return ResponseFormat::response(404, 'Usuario no encontrado.', null);
@@ -142,7 +142,7 @@ class UserController extends Controller
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users,email,' . $id, // Ignora el email actual
                 'password' => 'nullable|string|min:8', // Contraseña opcional al actualizar
-                'ueb_id' => 'required|exists:uebs,id', // Asegura que la UEB exista
+                'empresa_id' => 'required|exists:empresas,id', // Asegura que la Empresa exista
                  // Puedes añadir validación para roles si los actualizas aquí
             ], [
                  'name.required' => 'El nombre del usuario es obligatorio.',
@@ -150,8 +150,8 @@ class UserController extends Controller
                  'email.email' => 'El correo electrónico debe ser una dirección válida.',
                  'email.unique' => 'El correo electrónico ya está registrado.',
                  'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
-                 'ueb_id.required' => 'La UEB es obligatoria.',
-                 'ueb_id.exists' => 'La UEB seleccionada no existe.',
+                 'empresa_id.required' => 'La Empresa es obligatoria.',
+                 'empresa_id.exists' => 'La Empresa seleccionada no existe.',
             ]);
 
             if ($validator->fails()) {
@@ -161,7 +161,7 @@ class UserController extends Controller
 
             DB::beginTransaction(); // Iniciar transacción
 
-            $userData = $request->only(['name', 'email', 'ueb_id']);
+            $userData = $request->only(['name', 'email', 'empresa_id']);
 
             if ($request->filled('password')) {
                 $userData['password'] = Hash::make($request->password); // Hashear la nueva contraseña
