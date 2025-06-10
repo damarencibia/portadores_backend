@@ -37,7 +37,7 @@ class VehiculoFactory extends Factory
             'tipo_combustible_id' => $tipoCombustible->id,
             'indice_consumo' => $this->faker->randomFloat(2, 5, 20),
             'prueba_litro' => $this->faker->randomFloat(2, 5, 20),
-            'ficav' => $this->faker->boolean(),
+            'ficav' => $this->faker->date(),
             'capacidad_tanque' => $this->faker->numberBetween(30, 100),
             'color' => $this->faker->colorName(),
             'chapa' => $this->faker->unique()->regexify('[A-Z]{3}[0-9]{3}'),

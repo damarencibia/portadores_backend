@@ -58,6 +58,17 @@ class TipoCombustibleController extends Controller
      * Store a newly created resource in storage.
      * Crea un nuevo Tipo de Combustible.
      */
+
+     public function getNames()
+     {
+         try {
+             $nombres = TipoCombustible::select('id', 'nombre')->get();
+             return ResponseFormat::response(200, 'Lista id-nombre obtenida correctamente.', $nombres);
+         } catch (\Exception $e) {
+             return ResponseFormat::exceptionResponse($e);
+         }
+     }
+
     public function store(Request $request)
     {
         try {

@@ -24,30 +24,95 @@ class VehiculoController extends Controller
     public function index(Request $request)
     {
         try {
+            $user = auth()->user();
+            $empresaId = $user->empresa_id;
+    
+            // Paginación
             $itemsPerPage = $request->input("itemsPerPage", 20);
-            $page = $request->input("page", 1);
-
-            $vehiculosQuery = Vehiculo::with(['empresa', 'tipoCombustible', 'chofer']);
-
-            $paginated = $itemsPerPage == -1
+            $page         = $request->input("page", 1);
+    
+            // Filtros
+            $search             = $request->input('search');
+            $filterTipo         = $request->input('tipo_vehiculo');
+            $filterCombustible  = $request->input('tipo_combustible_id');
+            $filterEstado       = $request->input('estado_tecnico');
+            $filterChofer       = $request->input('chofer_id');
+    
+            $vehiculosQuery = Vehiculo::with(['empresa', 'tipoCombustible', 'chofer'])
+                ->where('empresa_id', $empresaId)
+                ->when($search, function ($q, $search) {
+                    $q->where(function ($q2) use ($search) {
+                        $q2->where('numero_interno',    'like', "%{$search}%")
+                           ->orWhere('marca',           'like', "%{$search}%")
+                           ->orWhere('modelo',          'like', "%{$search}%")
+                           ->orWhere('ano',             'like', "%{$search}%")
+                           ->orWhere('indice_consumo',  'like', "%{$search}%")
+                           ->orWhere('prueba_litro',    'like', "%{$search}%")
+                           ->orWhere('ficav',           'like', "%{$search}%")
+                           ->orWhere('capacidad_tanque','like', "%{$search}%")
+                           ->orWhere('color',           'like', "%{$search}%")
+                           ->orWhere('numero_motor',    'like', "%{$search}%")
+                           ->orWhere('numero_chasis',   'like', "%{$search}%");
+                    });
+                })
+                ->when($filterTipo, function ($q, $tipo) {
+                    $q->where('tipo_vehiculo', $tipo);
+                })
+                ->when($filterCombustible, function ($q, $comb) {
+                    $q->where('tipo_combustible_id', $comb);
+                })
+                ->when($filterEstado, function ($q, $estado) {
+                    $q->where('estado_tecnico', $estado);
+                })
+                ->when($filterChofer, function ($q, $choferId) {
+                    $q->where('chofer_id', $choferId);
+                });
+    
+            // Obtener datos
+            $paginated     = $itemsPerPage == -1
                 ? $vehiculosQuery->get()
                 : $vehiculosQuery->paginate($itemsPerPage, ['*'], 'page', $page);
-
+            $vehiculosRaw  = $itemsPerPage != -1 ? $paginated->items() : $paginated;
+    
+            // Mapeo en el mismo orden que los headers
+            $vehiculos = collect($vehiculosRaw)->map(function ($v) {
+                return [
+                    'id'                   => $v->id,
+                    'numero_interno'       => $v->numero_interno,
+                    'marca'                => $v->marca,
+                    'modelo'               => $v->modelo,
+                    'tipo_vehiculo'        => $v->tipo_vehiculo,
+                    'ano'                  => $v->ano,
+                    'tipo_combustible_id'  => optional($v->tipoCombustible)->nombre,
+                    'indice_consumo'       => $v->indice_consumo,
+                    'prueba_litro'         => $v->prueba_litro,
+                    'ficav'                => $v->ficav,
+                    'capacidad_tanque'     => $v->capacidad_tanque,
+                    'color'                => $v->color,
+                    'numero_motor'         => $v->numero_motor,
+                    'empresa_id'           => optional($v->empresa)->nombre,
+                    'numero_chasis'        => $v->numero_chasis,
+                    'chofer_id'            => optional($v->chofer)->nombre,
+                    'estado_tecnico'       => $v->estado_tecnico,
+                ];
+            });
+    
+            // Meta
             $meta = [
                 'total'     => $itemsPerPage != -1 ? $paginated->total() : count($paginated),
                 'perPage'   => $itemsPerPage != -1 ? $paginated->perPage() : count($paginated),
                 'page'      => $itemsPerPage != -1 ? $paginated->currentPage() : 1,
                 'last_page' => $itemsPerPage != -1 ? $paginated->lastPage() : 1,
             ];
-
-            $vehiculos = $itemsPerPage != -1 ? $paginated->items() : $paginated;
-
+    
             return ResponseFormat::response(200, 'Lista de Vehículos obtenida con éxito.', $vehiculos, $meta);
-
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
     }
+    
+    
+    
 
     /**
      * Crea un nuevo Vehículo.
@@ -64,42 +129,41 @@ class VehiculoController extends Controller
                 'tipo_combustible_id' => 'required|exists:tipo_combustibles,id',
                 'indice_consumo'      => 'nullable|numeric|min:0',
                 'prueba_litro'        => 'nullable|numeric|min:0',
-                'ficav'               => 'nullable|boolean',
+                'ficav'               => 'nullable|date',
                 'capacidad_tanque'    => 'nullable|numeric|min:0',
                 'color'               => 'nullable|string|max:50',
                 'chapa'               => 'required|string|max:20|unique:vehiculos',
                 'numero_motor'        => 'nullable|string|max:255|unique:vehiculos',
-                'empresa_id'          => 'required|exists:empresas,id',
                 'numero_chasis'       => 'nullable|string|max:255|unique:vehiculos',
                 'estado_tecnico'      => 'nullable|string|max:255',
-                'chofer_id'             => 'nullable|exists:choferes,id',
+                'chofer_id'           => 'nullable|exists:choferes,id',
             ], [
-                'marca.required'               => 'La marca del vehículo es obligatoria.',
-                'modelo.required'              => 'El modelo del vehículo es obligatorio.',
-                'tipo_vehiculo.required'       => 'El tipo de vehículo es obligatorio.',
-                'tipo_combustible_id.required' => 'El tipo de combustible es obligatorio.',
-                'tipo_combustible_id.exists'   => 'El tipo de combustible seleccionado no existe.',
-                'chapa.required'               => 'La chapa del vehículo es obligatoria.',
-                'chapa.unique'                 => 'La chapa del vehículo ya existe.',
-                'empresa_id.required'          => 'La Empresa es obligatoria.',
-                'empresa_id.exists'            => 'La Empresa seleccionada no existe.',
-                'numero_interno.unique'        => 'El número interno ya existe.',
-                'numero_motor.unique'          => 'El número de motor ya existe.',
-                'numero_chasis.unique'         => 'El número de chasis ya existe.',
-                'chofer_id.exists'               => 'El chofer asignado no existe.',
+                // mensajes de error...
             ]);
-
+    
             if ($validator->fails()) {
                 return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
             }
-
+    
             DB::beginTransaction();
-
-            $vehiculo = Vehiculo::create($request->all());
-
+    
+            // Obtenemos la empresa del usuario logueado
+            $empresaId = auth()->user()->empresa_id;
+    
+            // Creamos el vehículo mezclando la empresa_id fija
+            $vehiculo = Vehiculo::create(array_merge(
+                $request->only([
+                    'numero_interno','marca','modelo','tipo_vehiculo','ano',
+                    'tipo_combustible_id','indice_consumo','prueba_litro','ficav',
+                    'capacidad_tanque','color','chapa','numero_motor',
+                    'numero_chasis','estado_tecnico','chofer_id'
+                ]),
+                ['empresa_id' => $empresaId]
+            ));
+    
             DB::commit();
             return ResponseFormat::response(201, 'Vehículo creado con éxito.', $vehiculo);
-
+    
         } catch (Exception $e) {
             DB::rollBack();
             return ResponseFormat::exceptionResponse($e);
@@ -112,7 +176,7 @@ class VehiculoController extends Controller
     public function show($id)
     {
         try {
-            $vehiculo = Vehiculo::with(['empresa', 'tipoCombustible', 'chofer', 'tarjetasCombustible'])
+            $vehiculo = Vehiculo::with(['empresa', 'tipoCombustible', 'chofer'])
                 ->findOrFail($id);
 
             return ResponseFormat::response(200, 'Vehículo obtenido con éxito.', $vehiculo);
@@ -131,7 +195,7 @@ class VehiculoController extends Controller
     {
         try {
             $vehiculo = Vehiculo::findOrFail($id);
-
+    
             $validator = Validator::make($request->all(), [
                 'numero_interno'      => 'nullable|string|max:255|unique:vehiculos,numero_interno,' . $id,
                 'marca'               => 'sometimes|string|max:255',
@@ -141,42 +205,40 @@ class VehiculoController extends Controller
                 'tipo_combustible_id' => 'sometimes|exists:tipo_combustibles,id',
                 'indice_consumo'      => 'nullable|numeric|min:0',
                 'prueba_litro'        => 'nullable|numeric|min:0',
-                'ficav'               => 'nullable|boolean',
+                'ficav'               => 'nullable|date',
                 'capacidad_tanque'    => 'nullable|numeric|min:0',
                 'color'               => 'nullable|string|max:50',
                 'chapa'               => 'sometimes|string|max:20|unique:vehiculos,chapa,' . $id,
                 'numero_motor'        => 'nullable|string|max:255|unique:vehiculos,numero_motor,' . $id,
-                'empresa_id'          => 'sometimes|exists:empresas,id',
-                'numero_chasis'       => 'nullable|string|max:255|unique:vehiculos,' . $id,
+                'numero_chasis'       => 'nullable|string|max:255|unique:vehiculos,numero_chasis,' . $id,
                 'estado_tecnico'      => 'nullable|string|max:255',
-                'chofer_id'             => 'nullable|exists:choferes,id',
+                'chofer_id'           => 'nullable|exists:choferes,id',
             ], [
-                'marca.required'               => 'La marca del vehículo es obligatoria.',
-                'modelo.required'              => 'El modelo del vehículo es obligatorio.',
-                'tipo_vehiculo.required'       => 'El tipo de vehículo es obligatorio.',
-                'tipo_combustible_id.required' => 'El tipo de combustible es obligatorio.',
-                'tipo_combustible_id.exists'   => 'El tipo de combustible seleccionado no existe.',
-                'chapa.required'               => 'La chapa del vehículo es obligatoria.',
-                'chapa.unique'                 => 'La chapa del vehículo ya existe.',
-                'empresa_id.required'          => 'La Empresa es obligatoria.',
-                'empresa_id.exists'            => 'La Empresa seleccionada no existe.',
-                'numero_interno.unique'        => 'El número interno ya existe.',
-                'numero_motor.unique'          => 'El número de motor ya existe.',
-                'numero_chasis.unique'         => 'El número de chasis ya existe.',
-                'chofer_id.exists'               => 'El chofer asignado no existe.',
+                // mensajes de error...
             ]);
-
+    
             if ($validator->fails()) {
                 return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
             }
-
+    
             DB::beginTransaction();
-
-            $vehiculo->update($request->all());
+    
+            // Nos aseguramos de que la empresa no cambie
+            $data = $request->only([
+                'numero_interno','marca','modelo','tipo_vehiculo','ano',
+                'tipo_combustible_id','indice_consumo','prueba_litro','ficav',
+                'capacidad_tanque','color','chapa','numero_motor',
+                'numero_chasis','estado_tecnico','chofer_id'
+            ]);
+    
+            // Siempre forzamos la misma empresa del usuario
+            $data['empresa_id'] = auth()->user()->empresa_id;
+    
+            $vehiculo->update($data);
+    
             DB::commit();
-
             return ResponseFormat::response(200, 'Vehículo actualizado con éxito.', $vehiculo);
-
+    
         } catch (ModelNotFoundException $e) {
             return ResponseFormat::response(404, 'Vehículo no encontrado.', null);
         } catch (Exception $e) {

@@ -21,7 +21,7 @@ return new class extends Migration
             $table->foreignId('tipo_combustible_id')->constrained('tipo_combustibles')->onDelete('restrict');
             $table->decimal('indice_consumo', 10, 2);
             $table->decimal('prueba_litro', 10, 2);
-            $table->boolean('ficav');
+            $table->date('ficav');
             $table->integer('capacidad_tanque');
             $table->string('color');
             $table->string('chapa')->unique();

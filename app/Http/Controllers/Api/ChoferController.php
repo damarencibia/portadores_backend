@@ -96,6 +96,20 @@ class ChoferController extends Controller
     }
 
     /**
+     * Obtener solo los nombres de los choferes.
+     */
+    public function getNames()
+    {
+        try {
+            $nombres = Chofer::select('id', 'nombre')->get();
+            return ResponseFormat::response(200, 'Lista de nombres obtenida correctamente.', $nombres);
+        } catch (\Exception $e) {
+            return ResponseFormat::exceptionResponse($e);
+        }
+    }
+
+
+    /**
      * Display the specified resource.
      * Muestra un Chofer específico con su empresa.
      */
