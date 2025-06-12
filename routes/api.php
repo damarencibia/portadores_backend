@@ -37,6 +37,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Rutas para la gestión de Usuarios
     Route::prefix('users')->group(function () {
+        Route::get('/users-by-enterprise', [UserController::class, 'usersByEmpresa']); // Lista todos los usuarios cuya empresa sea la misma que el usuario autenticado
         Route::get('/', [UserController::class, 'index']); // Lista todos los usuarios
         Route::get('/{id}', [UserController::class, 'show']); // Muestra un usuario por ID
         Route::post('/', [UserController::class, 'store']); // Crea un nuevo usuario
@@ -79,9 +80,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas Resource para la gestión de Vehículos
     Route::apiResource('vehiculos', VehiculoController::class);
 
-    Route::get('tarjeta-combustibles/reportes/consumo-mes', [TarjetaCombustibleController::class, 'calculateConsumoCombustible']);
+    Route::get('tarjetas-combustible/reportes/consumo-mes', [TarjetaCombustibleController::class, 'calculateConsumoCombustible']);
+    Route::get('tarjetas-combustible/get-numbers', [TarjetaCombustibleController::class, 'getNames']);
+    Route::get('tarjetas-combustible/{id}/precio', [TarjetaCombustibleController::class, 'getPrecioCombustiblePorTarjeta']);
     // Rutas Resource para la gestión de Tarjetas de Combustible
-    Route::apiResource('tarjeta-combustibles', TarjetaCombustibleController::class);
+    Route::apiResource('tarjetas-combustible', TarjetaCombustibleController::class);
 
     // Rutas Resource para la gestión de Cargas de Combustible
     Route::apiResource('carga-combustibles', CargaCombustibleController::class);

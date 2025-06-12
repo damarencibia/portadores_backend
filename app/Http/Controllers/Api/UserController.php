@@ -43,6 +43,52 @@ class UserController extends Controller
         }
     }
 
+/**
+ * Obtener usuarios de la misma empresa que el usuario autenticado.
+ */
+public function usersByEmpresa(Request $request)
+{
+    try {
+        $authUser   = auth()->user();
+        $empresaId  = $authUser->empresa_id;
+
+        // Parámetros de paginación
+        $itemsPerPage = $request->input("itemsPerPage", 20);
+        $page         = $request->input("page", 1);
+
+        // Query restringida a la misma empresa
+        $query = User::with('empresa')
+            ->where('empresa_id', $empresaId);
+
+        // Ejecutar paginación o traer todos
+        $paginated = $itemsPerPage == -1
+            ? $query->get()
+            : $query->paginate($itemsPerPage, ['*'], 'page', $page);
+
+        // Construir meta uniforme
+        $meta = [
+            'total'     => $itemsPerPage != -1 ? $paginated->total() : count($paginated),
+            'perPage'   => $itemsPerPage != -1 ? $paginated->perPage() : count($paginated),
+            'page'      => $itemsPerPage != -1 ? $paginated->currentPage() : 1,
+            'last_page' => $itemsPerPage != -1 ? $paginated->lastPage() : 1,
+        ];
+
+        // Obtener colección de usuarios
+        $users = $itemsPerPage != -1 ? $paginated->items() : $paginated;
+
+        return ResponseFormat::response(
+            200,
+            'Usuarios de tu misma empresa obtenidos con éxito.',
+            $users,
+            $meta
+        );
+
+    } catch (Exception $e) {
+        return ResponseFormat::exceptionResponse($e);
+    }
+}
+
+
     public function store(Request $request)
     {
         try {

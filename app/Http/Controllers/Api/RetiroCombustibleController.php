@@ -68,7 +68,7 @@ class RetiroCombustibleController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'fecha'                  => 'required|date',
-            'hora'                   => 'nullable|date_format:H:i:s',
+            'hora'                   => 'nullable|date_format:H:i',
             'tarjeta_combustible_id' => 'required|exists:tarjeta_combustibles,id',
             'cantidad'               => 'required|numeric|min:0.01',
             'odometro'               => 'required|numeric|min:0',
@@ -155,7 +155,7 @@ class RetiroCombustibleController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'fecha'    => 'sometimes|required|date',
-            'hora'     => 'nullable|date_format:H:i:s',
+            'hora'     => 'nullable|date_format:H:i',
             'cantidad' => 'sometimes|required|numeric|min:0.01',
             'odometro' => 'sometimes|required|numeric|min:0',
         ]);

@@ -22,32 +22,102 @@ class CargaCombustibleController extends Controller
     public function index(Request $request)
     {
         try {
-            $itemsPerPage = $request->input("itemsPerPage", 20);
-            $page = $request->input("page", 1);
-
-            // Cargar las relaciones necesarias. tipoCombustible se obtiene a través de tarjetaCombustible
-            $cargasQuery = CargaCombustible::with(['registradoPor', 'validadoPor', 'tarjetaCombustible.tipoCombustible']);
-
-            $paginated = $itemsPerPage == -1
-                ? $cargasQuery->get()
-                : $cargasQuery->paginate($itemsPerPage, ['*'], 'page', $page);
-
-            $meta = [
-                'total'     => $itemsPerPage != -1 ? $paginated->total() : count($paginated),
-                'perPage'   => $itemsPerPage != -1 ? $paginated->perPage() : count($paginated),
-                'page'      => $itemsPerPage != -1 ? $paginated->currentPage() : 1,
-                'last_page' => $itemsPerPage != -1 ? $paginated->lastPage() : 1,
-            ];
-
-            $cargas = $itemsPerPage != -1 ? $paginated->items() : $paginated;
-
+            $itemsPerPage        = $request->input("itemsPerPage", 20);
+            $page                = $request->input("page", 1);
+            $tarjetaId           = $request->input("tarjeta_combustible_id");
+            $choferId            = $request->input("chofer_id");
+            $tipoCombustibleId   = $request->input("tipo_combustible_id");
+            $registradorId       = $request->input("registrado_por_id");  // <-- nuevo filtro
+            $search              = $request->input("search");
+    
+            $cargasQuery = CargaCombustible::with([
+                'registradoPor',
+                'validadoPor',
+                'tarjetaCombustible.tipoCombustible',
+                'tarjetaCombustible.chofer'
+            ])
+            ->when($tarjetaId, fn($q) => $q->where('tarjeta_combustible_id', $tarjetaId))
+            ->when($choferId, fn($q) =>
+                $q->whereHas('tarjetaCombustible', fn($q2) => $q2->where('chofer_id', $choferId))
+            )
+            ->when($tipoCombustibleId, fn($q) =>
+                $q->whereHas('tarjetaCombustible.tipoCombustible', fn($q2) =>
+                    $q2->where('id', $tipoCombustibleId)
+                )
+            )
+            ->when($registradorId, fn($q) =>
+                $q->where('registrado_por_id', $registradorId)
+            )
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('lugar', 'like', "%{$search}%")
+                      ->orWhere('motivo', 'like', "%{$search}%")
+                      ->orWhere('no_chip', 'like', "%{$search}%")
+                      ->orWhere('importe', 'like', "%{$search}%")
+                      ->orWhere('cantidad', 'like', "%{$search}%")
+                      ->orWhere('odometro', 'like', "%{$search}%")
+                      ->orWhereHas('tarjetaCombustible', fn($q2) =>
+                          $q2->where('numero', 'like', "%{$search}%")
+                      );
+                });
+            });
+    
+            // Paginación...
+            if ($itemsPerPage == -1) {
+                $collection = $cargasQuery->get();
+                $meta = [
+                    'total'     => $collection->count(),
+                    'perPage'   => $collection->count(),
+                    'page'      => 1,
+                    'last_page' => 1,
+                ];
+            } else {
+                $paginated = $cargasQuery->paginate($itemsPerPage, ['*'], 'page', $page);
+                $collection = $paginated->items();
+                $meta = [
+                    'total'     => $paginated->total(),
+                    'perPage'   => $paginated->perPage(),
+                    'page'      => $paginated->currentPage(),
+                    'last_page' => $paginated->lastPage(),
+                ];
+            }
+    
+            // Mapeo igualito que antes...
+            $cargas = collect($collection)->map(function ($carga) {
+                return [
+                    'id'                                => $carga->id,
+                    'fecha'                             => $carga->fecha,
+                    'hora'                              => $carga->hora,
+                    'tarjeta_combustible'               => optional($carga->tarjetaCombustible)->numero,
+                    'tipo_combustible'                  => optional($carga->tarjetaCombustible?->tipoCombustible)->nombre,
+                    'chofer'                            => optional($carga->tarjetaCombustible?->chofer)->nombre,
+                    'cantidad'                          => $carga->cantidad,
+                    'importe'                           => $carga->importe,
+                    'odometro'                          => $carga->odometro,
+                    'lugar'                             => $carga->lugar,
+                    'motivo'                            => $carga->motivo,
+                    'no_chip'                           => $carga->no_chip,
+                    'registrado_por'                    => optional($carga->registradoPor)->name,
+                    'validado_por'                      => optional($carga->validadoPor)->name,
+                    'fecha_validacion'                  => $carga->fecha_validacion,
+                    'estado'                            => $carga->estado,
+                    'saldo_monetario_anterior'          => $carga->saldo_monetario_anterior,
+                    'cantidad_combustible_anterior'     => $carga->cantidad_combustible_anterior,
+                    'saldo_monetario_al_momento_carga'  => $carga->saldo_monetario_al_momento_carga,
+                    'cantidad_combustible_al_momento_carga' => $carga->cantidad_combustible_al_momento_carga,
+                ];
+            });
+    
             return ResponseFormat::response(200, 'Lista de Cargas de Combustible obtenida con éxito.', $cargas, $meta);
-
+    
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
     }
-
+    
+    
+    
+    
     /**
      * Crea una nueva Carga de Combustible.
      * El importe se calcula automáticamente basado en la cantidad y el precio del tipo de combustible de la tarjeta.
@@ -57,7 +127,7 @@ class CargaCombustibleController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'fecha'                  => 'required|date',
-                'hora'                   => 'nullable|date_format:H:i:s',
+                'hora'                   => 'nullable|date_format:H:i',
                 'cantidad'               => 'required|numeric|min:0.01', // Cantidad de combustible a agregar
                 'odometro'               => 'required|numeric|min:0',
                 'lugar'                  => 'nullable|string|max:255',

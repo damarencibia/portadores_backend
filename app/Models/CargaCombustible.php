@@ -33,8 +33,6 @@ class CargaCombustible extends Model
     ];
 
     protected $casts = [
-        'fecha' => 'date',
-        'fecha_validacion' => 'datetime',
         'cantidad' => 'decimal:2',
         'importe' => 'decimal:2',
         // Casts para los saldos históricos (anterior y al momento de carga)

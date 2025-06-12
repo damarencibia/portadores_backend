@@ -27,7 +27,6 @@ class TarjetaCombustible extends Model
 
     protected $casts = [
         'activa' => 'boolean',
-        'fecha_vencimiento' => 'date',
         'saldo_monetario_actual' => 'decimal:2',
         'cantidad_actual' => 'decimal:2',
         'saldo_maximo' => 'decimal:2',
