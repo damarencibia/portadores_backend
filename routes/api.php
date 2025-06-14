@@ -86,9 +86,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas Resource para la gestión de Tarjetas de Combustible
     Route::apiResource('tarjetas-combustible', TarjetaCombustibleController::class);
 
+    Route::post('/carga-combustibles/{id}/validar', [CargaCombustibleController::class, 'validar']); // Valida una carga de combustible
     // Rutas Resource para la gestión de Cargas de Combustible
     Route::apiResource('carga-combustibles', CargaCombustibleController::class);
 
+    Route::post('/retiros-combustible/{id}/validar', [CargaCombustibleController::class, 'validar']); // Valida una carga de combustible
     // Rutas Resource para la gestión de Retiros de Combustible
     Route::apiResource('retiros-combustible', RetiroCombustibleController::class);
     // Puedes agrupar rutas relacionadas por middleware si es necesario (ej: 'auth:sanctum', 'role:admin')

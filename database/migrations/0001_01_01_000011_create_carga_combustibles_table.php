@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('carga_combustibles', function (Blueprint $table) {
             $table->id();
             $table->date('fecha');
-            $table->time('hora')->nullable();
+            $table->time('hora');
 
             $table->foreignId('tarjeta_combustible_id')->constrained('tarjeta_combustibles')->onDelete('restrict');
             $table->decimal('cantidad', 10, 2); // Cantidad de combustible CARGADO
@@ -27,7 +27,6 @@ return new class extends Migration
             $table->decimal('saldo_monetario_al_momento_carga', 10, 2)->nullable();
             $table->decimal('cantidad_combustible_al_momento_carga', 10, 2)->nullable();
 
-
             $table->integer('odometro')->nullable();
             $table->string('lugar')->nullable(); // Lugar donde se realizó la carga, opcional
             $table->string('motivo')->nullable(); // Motivo por el que se realizó la carga
@@ -37,10 +36,13 @@ return new class extends Migration
             $table->foreignId('registrado_por_id')->constrained('users')->onDelete('restrict');
             $table->foreignId('validado_por_id')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamp('fecha_validacion')->nullable();
-            $table->string('estado')->default('Pendiente');
+            $table->string('estado')->default('pendiente');
+            $table->string('motivo_rechazo')->nullable();
 
             $table->timestamps();
-            // $table->softDeletes(); // Descomentar si usas Soft Deletes
+            $table->softDeletes(); // Columna 'deleted_at'
+            
+            $table->string('deletion_reason')->nullable();
         });
     }
 

@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint; // Corregido: 'Illuminate\Database->Schema\Blueprint' a 'Illuminate\Database\Schema\Blueprint'
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -30,13 +30,15 @@ return new class extends Migration
             $table->string('no_chip')->nullable(); // Número de chip/transacción, opcional (si aplica a retiros)
 
             $table->foreignId('registrado_por_id')->constrained('users')->onDelete('restrict');
-            // Puedes añadir campos de validación si los retiros también se validan
             $table->foreignId('validado_por_id')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamp('fecha_validacion')->nullable();
-            $table->string('estado')->default('Pendiente'); // O 'Pendiente' si hay un proceso de validación
+            $table->string('estado')->default('pendiente'); // Uniformidad con 'carga_combustibles'
+            $table->string('motivo_rechazo')->nullable(); // Añadido: Para guardar el motivo de rechazo
 
             $table->timestamps();
-            // $table->softDeletes(); // Descomentar si usas Soft Deletes
+            $table->softDeletes(); // Añadido: Para Soft Deletes
+
+            $table->string('deletion_reason')->nullable(); // Añadido: Motivo de la eliminación lógica
         });
     }
 

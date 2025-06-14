@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class CargaCombustibleController extends Controller
 {
@@ -27,42 +28,45 @@ class CargaCombustibleController extends Controller
             $tarjetaId           = $request->input("tarjeta_combustible_id");
             $choferId            = $request->input("chofer_id");
             $tipoCombustibleId   = $request->input("tipo_combustible_id");
-            $registradorId       = $request->input("registrado_por_id");  // <-- nuevo filtro
+            $registradorId       = $request->input("registrado_por_id");
             $search              = $request->input("search");
+            $withTrashed         = filter_var($request->input("with_trashed", false), FILTER_VALIDATE_BOOLEAN);
     
-            $cargasQuery = CargaCombustible::with([
-                'registradoPor',
-                'validadoPor',
-                'tarjetaCombustible.tipoCombustible',
-                'tarjetaCombustible.chofer'
-            ])
-            ->when($tarjetaId, fn($q) => $q->where('tarjeta_combustible_id', $tarjetaId))
-            ->when($choferId, fn($q) =>
-                $q->whereHas('tarjetaCombustible', fn($q2) => $q2->where('chofer_id', $choferId))
-            )
-            ->when($tipoCombustibleId, fn($q) =>
-                $q->whereHas('tarjetaCombustible.tipoCombustible', fn($q2) =>
-                    $q2->where('id', $tipoCombustibleId)
+            $cargasQuery = CargaCombustible::query()
+                ->when($withTrashed, fn($q) => $q->withTrashed()) // 👈 incluye eliminados si se pide
+                ->with([
+                    'registradoPor',
+                    'validadoPor',
+                    'tarjetaCombustible.tipoCombustible',
+                    'tarjetaCombustible.chofer'
+                ])
+                ->when($tarjetaId, fn($q) => $q->where('tarjeta_combustible_id', $tarjetaId))
+                ->when($choferId, fn($q) =>
+                    $q->whereHas('tarjetaCombustible', fn($q2) => $q2->where('chofer_id', $choferId))
                 )
-            )
-            ->when($registradorId, fn($q) =>
-                $q->where('registrado_por_id', $registradorId)
-            )
-            ->when($search, function ($query) use ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('lugar', 'like', "%{$search}%")
-                      ->orWhere('motivo', 'like', "%{$search}%")
-                      ->orWhere('no_chip', 'like', "%{$search}%")
-                      ->orWhere('importe', 'like', "%{$search}%")
-                      ->orWhere('cantidad', 'like', "%{$search}%")
-                      ->orWhere('odometro', 'like', "%{$search}%")
-                      ->orWhereHas('tarjetaCombustible', fn($q2) =>
-                          $q2->where('numero', 'like', "%{$search}%")
-                      );
+                ->when($tipoCombustibleId, fn($q) =>
+                    $q->whereHas('tarjetaCombustible.tipoCombustible', fn($q2) =>
+                        $q2->where('id', $tipoCombustibleId)
+                    )
+                )
+                ->when($registradorId, fn($q) =>
+                    $q->where('registrado_por_id', $registradorId)
+                )
+                ->when($search, function ($query) use ($search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('lugar', 'like', "%{$search}%")
+                            ->orWhere('motivo', 'like', "%{$search}%")
+                            ->orWhere('no_chip', 'like', "%{$search}%")
+                            ->orWhere('importe', 'like', "%{$search}%")
+                            ->orWhere('cantidad', 'like', "%{$search}%")
+                            ->orWhere('odometro', 'like', "%{$search}%")
+                            ->orWhereHas('tarjetaCombustible', fn($q2) =>
+                                $q2->where('numero', 'like', "%{$search}%")
+                            );
+                    });
                 });
-            });
     
-            // Paginación...
+            // Paginación
             if ($itemsPerPage == -1) {
                 $collection = $cargasQuery->get();
                 $meta = [
@@ -82,7 +86,6 @@ class CargaCombustibleController extends Controller
                 ];
             }
     
-            // Mapeo igualito que antes...
             $cargas = collect($collection)->map(function ($carga) {
                 return [
                     'id'                                => $carga->id,
@@ -101,10 +104,14 @@ class CargaCombustibleController extends Controller
                     'validado_por'                      => optional($carga->validadoPor)->name,
                     'fecha_validacion'                  => $carga->fecha_validacion,
                     'estado'                            => $carga->estado,
+                    'motivo_rechazo'                    => $carga->motivo_rechazo,
                     'saldo_monetario_anterior'          => $carga->saldo_monetario_anterior,
                     'cantidad_combustible_anterior'     => $carga->cantidad_combustible_anterior,
                     'saldo_monetario_al_momento_carga'  => $carga->saldo_monetario_al_momento_carga,
                     'cantidad_combustible_al_momento_carga' => $carga->cantidad_combustible_al_momento_carga,
+                    'eliminado'                         => $carga->trashed(),
+                    'deleted_at'                        => $carga->deleted_at, 
+                    'deletion_reason'                   => $carga->deletion_reason, 
                 ];
             });
     
@@ -118,6 +125,7 @@ class CargaCombustibleController extends Controller
     
     
     
+    
     /**
      * Crea una nueva Carga de Combustible.
      * El importe se calcula automáticamente basado en la cantidad y el precio del tipo de combustible de la tarjeta.
@@ -127,7 +135,7 @@ class CargaCombustibleController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'fecha'                  => 'required|date',
-                'hora'                   => 'nullable|date_format:H:i',
+                'hora'                   => 'required',
                 'cantidad'               => 'required|numeric|min:0.01', // Cantidad de combustible a agregar
                 'odometro'               => 'required|numeric|min:0',
                 'lugar'                  => 'nullable|string|max:255',
@@ -137,12 +145,12 @@ class CargaCombustibleController extends Controller
                 'validado_por_id'        => 'nullable|exists:users,id',
                 'fecha_validacion'       => 'nullable|date',
                 'estado'                 => 'nullable|string|max:50',
+                'motivo_rechazo'         => 'nullable|string|max:255',
                 'tarjeta_combustible_id' => 'required|exists:tarjeta_combustibles,id',
             ], [
                 'cantidad.min' => 'La cantidad de combustible a cargar debe ser mayor a 0.',
                 'fecha.required' => 'La fecha de la carga es obligatoria.',
                 'fecha.date' => 'La fecha de la carga debe ser una fecha válida.',
-                'hora.date_format' => 'La hora debe tener el formato HH:MM:SS.',
                 'odometro.required' => 'La lectura del odómetro es obligatoria.',
                 'odometro.numeric' => 'La lectura del odómetro debe ser un número.',
                 'odometro.min' => 'La lectura del odómetro no puede ser menor a 0.',
@@ -231,17 +239,75 @@ class CargaCombustibleController extends Controller
     /**
      * Muestra una Carga de Combustible específica.
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
         try {
-            $carga = CargaCombustible::with(['registradoPor', 'validadoPor', 'tarjetaCombustible.tipoCombustible'])->findOrFail($id);
-            return ResponseFormat::response(200, 'Carga de Combustible obtenida con éxito.', $carga);
+            $tarjetaId         = $request->input("tarjeta_combustible_id");
+            $choferId          = $request->input("chofer_id");
+            $tipoCombustibleId = $request->input("tipo_combustible_id");
+            $registradorId     = $request->input("registrado_por_id");
+    
+            $query = CargaCombustible::withTrashed() // 👈 Esto permite incluir eliminados
+                ->with([
+                    'registradoPor',
+                    'validadoPor',
+                    'tarjetaCombustible.tipoCombustible',
+                    'tarjetaCombustible.chofer'
+                ])
+                ->where('id', $id)
+                ->when($tarjetaId, fn($q) => $q->where('tarjeta_combustible_id', $tarjetaId))
+                ->when($choferId, fn($q) =>
+                    $q->whereHas('tarjetaCombustible', fn($q2) => $q2->where('chofer_id', $choferId))
+                )
+                ->when($tipoCombustibleId, fn($q) =>
+                    $q->whereHas('tarjetaCombustible.tipoCombustible', fn($q2) =>
+                        $q2->where('id', $tipoCombustibleId)
+                    )
+                )
+                ->when($registradorId, fn($q) =>
+                    $q->where('registrado_por_id', $registradorId)
+                );
+    
+            $carga = $query->firstOrFail();
+    
+            $responseData = [
+                'id'                                    => $carga->id,
+                'fecha'                                 => $carga->fecha,
+                'hora'                                  => $carga->hora,
+                'tarjeta_combustible'                   => optional($carga->tarjetaCombustible)->numero,
+                'tipo_combustible'                      => optional($carga->tarjetaCombustible?->tipoCombustible)->nombre,
+                'precio_combustible'                    => optional($carga->tarjetaCombustible?->tipoCombustible)->precio,
+                'chofer'                                => optional($carga->tarjetaCombustible?->chofer)->nombre,
+                'cantidad'                              => $carga->cantidad,
+                'importe'                               => $carga->importe,
+                'odometro'                              => $carga->odometro,
+                'lugar'                                 => $carga->lugar,
+                'motivo'                                => $carga->motivo,
+                'no_chip'                               => $carga->no_chip,
+                'registrado_por'                        => optional($carga->registradoPor)->name,
+                'validado_por'                          => optional($carga->validadoPor)->name,
+                'fecha_validacion'                      => $carga->fecha_validacion,
+                'estado'                                => $carga->estado,
+                'motivo_rechazo'                        => $carga->motivo_rechazo,
+                'saldo_monetario_anterior'              => $carga->saldo_monetario_anterior,
+                'cantidad_combustible_anterior'         => $carga->cantidad_combustible_anterior,
+                'saldo_monetario_al_momento_carga'      => $carga->saldo_monetario_al_momento_carga,
+                'cantidad_combustible_al_momento_carga' => $carga->cantidad_combustible_al_momento_carga,
+                'eliminado'                             => $carga->trashed(),
+                'deleted_at'                            => $carga->deleted_at,
+                'deletion_reason'                       => $carga->deletion_reason, 
+            ];
+    
+            return ResponseFormat::response(200, 'Carga de Combustible obtenida con éxito.', $responseData);
+    
         } catch (ModelNotFoundException $e) {
-            return ResponseFormat::response(404, 'Carga de Combustible no encontrada.', null);
+            return ResponseFormat::response(404, 'Carga de Combustible no encontrada con los filtros aplicados.', null);
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
     }
+    
+    
 
     /**
      * Actualiza una Carga de Combustible específica y ajusta los saldos de la tarjeta.
@@ -261,15 +327,16 @@ class CargaCombustibleController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'fecha'                  => 'sometimes|required|date',
-                'hora'                   => 'nullable|date_format:H:i:s',
+                'hora'                   => 'sometimes|date_format:H:i:s',
                 'cantidad'               => 'sometimes|required|numeric|min:0.01',
                 'odometro'               => 'sometimes|required|numeric|min:0',
-                'lugar'                  => 'nullable|string|max:255',
-                'no_chip'                => 'nullable|string|max:255',
+                'lugar'                  => 'sometimes|string|max:255',
+                'no_chip'                => 'sometimes|string|max:255',
                 'registrado_por_id'      => 'sometimes|required|exists:users,id',
-                'validado_por_id'        => 'nullable|exists:users,id',
-                'fecha_validacion'       => 'nullable|date',
-                'estado'                 => 'nullable|string|max:50',
+                'validado_por_id'        => 'sometimes|exists:users,id',
+                'fecha_validacion'       => 'sometimes|date',
+                'estado'                 => 'sometimes|string|max:50',
+                'motivo_rechazo'         => 'sometimes|string|max:50',
                 'tarjeta_combustible_id' => 'sometimes|required|exists:tarjeta_combustibles,id',
             ]);
 
@@ -365,28 +432,75 @@ class CargaCombustibleController extends Controller
     }
 
     /**
-     * Elimina una Carga de Combustible específica y ajusta los saldos de la tarjeta,
-     * revirtiendo el efecto de la carga.
+     * Valida o rechaza una Carga de Combustible.
+     * Si 'valid' es false, revierte saldos y elimina la carga.
      */
-    public function destroy($id)
+    /**
+     * Valida o rechaza una Carga de Combustible.
+     * Si 'valid' es true, marca la carga como 'validada'.
+     * Si 'valid' es false, revierte los saldos, marca la carga como 'rechazada' y requiere un motivo.
+     */
+    public function validar(Request $request, $id)
     {
-        try {
-            $carga = CargaCombustible::findOrFail($id);
-            $tarjeta = $carga->tarjetaCombustible;
+        // --- 1. VALIDACIÓN ACTUALIZADA ---
+        $validator = Validator::make($request->all(), [
+            'valid'           => 'required|boolean',
+            'validado_por_id' => 'required|exists:users,id', // Se requiere siempre para saber quién hace la acción
+            'motivo_rechazo'  => 'required_if:valid,false|string|max:255', // Obligatorio si se rechaza
+        ], [
+            'validado_por_id.required' => 'El usuario que realiza la validación/rechazo es obligatorio.',
+            'motivo_rechazo.required_if' => 'El motivo del rechazo es obligatorio cuando se rechaza una carga.',
+        ]);
 
+        if ($validator->fails()) {
+            return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
+        }
+
+        try {
             DB::beginTransaction();
 
-            // Revertir el efecto de la carga en los saldos de la tarjeta
-            $tarjeta->saldo_monetario_actual += $carga->importe;
-            $tarjeta->cantidad_actual -= $carga->cantidad;
-            $tarjeta->consumo_cantidad_mensual_acumulado -= $carga->cantidad;
-            $tarjeta->save();
+            $carga   = CargaCombustible::findOrFail($id);
+            $tarjeta = $carga->tarjetaCombustible;
 
-            $carga->delete();
+            // --- 2. PROTECCIÓN CONTRA DOBLE ACCIÓN ---
+            // Evitar que una carga ya procesada se vuelva a procesar.
+            if (in_array($carga->estado, ['validada', 'rechazada'])) {
+                DB::rollBack();
+                return ResponseFormat::response(400, 'Esta carga ya ha sido ' . $carga->estado . ' y no puede ser modificada.', null);
+            }
 
-            DB::commit();
-            return ResponseFormat::response(200, 'Carga de Combustible eliminada con éxito y saldos de tarjeta ajustados.', null);
+            $isValid = $request->input('valid');
 
+            if ($isValid) {
+                // --- LÓGICA DE VALIDACIÓN (sin cambios) ---
+                $carga->estado           = 'validada';
+                $carga->validado_por_id  = $request->input('validado_por_id');
+                $carga->fecha_validacion = Carbon::now();
+                $carga->motivo_rechazo   = null; // Limpiar motivo de rechazo si se valida
+                $carga->save();
+
+                DB::commit();
+                return ResponseFormat::response(200, 'Carga validada con éxito.', $carga);
+            } else {
+                // --- 3. NUEVA LÓGICA DE RECHAZO ---
+
+                // a. Revertimos los saldos en la tarjeta
+                $tarjeta->saldo_monetario_actual       += $carga->importe;
+                $tarjeta->cantidad_actual              -= $carga->cantidad;
+                $tarjeta->consumo_cantidad_mensual_acumulado -= $carga->cantidad;
+                $tarjeta->save();
+
+                // b. En lugar de eliminar, actualizamos el estado de la carga
+                $carga->estado           = 'rechazada';
+                $carga->motivo_rechazo   = $request->input('motivo_rechazo');
+                $carga->validado_por_id  = $request->input('validado_por_id'); // Quién la rechazó
+                $carga->fecha_validacion = Carbon::now()->toDateString();      // Cuándo se rechazó
+                $carga->save(); // Guardamos la carga con el nuevo estado
+
+                DB::commit();
+                // Devolvemos la carga actualizada en la respuesta
+                return ResponseFormat::response(200, 'Carga rechazada con éxito, saldos revertidos.', $carga);
+            }
         } catch (ModelNotFoundException $e) {
             DB::rollBack();
             return ResponseFormat::response(404, 'Carga de Combustible no encontrada.', null);
@@ -395,4 +509,64 @@ class CargaCombustibleController extends Controller
             return ResponseFormat::exceptionResponse($e);
         }
     }
+
+
+    /**
+     * "Elimina" (lógicamente, usando soft deletes) una Carga de Combustible específica
+     * SÓLO si su estado es 'rechazada', registrando quién y por qué.
+     * Guarda el ID del usuario y su nombre, junto con el motivo.
+     */
+    public function destroy(Request $request, $id)
+    {
+        // 1. Validar motivo de eliminación
+        $validator = Validator::make($request->all(), [
+            'deletion_reason' => 'required|string|max:255',
+        ], [
+            'deletion_reason.required' => 'El motivo de la eliminación es obligatorio.',
+        ]);
+    
+        if ($validator->fails()) {
+            return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
+        }
+    
+        // Verificar usuario autenticado (seguridad extra)
+        if (!Auth::check()) {
+            return ResponseFormat::response(401, 'Usuario no autenticado. Inicie sesión para realizar esta acción.', null);
+        }
+    
+        try {
+            DB::beginTransaction();
+    
+            $carga = CargaCombustible::withTrashed()->findOrFail($id);
+    
+            // Verificaciones antes de eliminar
+            if ($carga->trashed()) {
+                DB::rollBack();
+                return ResponseFormat::response(400, 'Esta carga de combustible ya ha sido eliminada previamente.', null);
+            }
+    
+            if ($carga->estado !== 'rechazada') {
+                DB::rollBack();
+                return ResponseFormat::response(400, 'Solo se pueden eliminar cargas de combustible que se encuentren en estado "rechazada". Esta carga tiene el estado: "' . $carga->estado . '".', null);
+            }
+    
+            // Guardar motivo de eliminación antes del delete (si el campo existe)
+            $carga->deletion_reason = $request->input('deletion_reason');
+            $carga->save(); // 👈 Esto es clave
+            // Soft delete
+            $carga->delete();
+    
+            DB::commit();
+    
+            return ResponseFormat::response(200, 'Carga de Combustible rechazada eliminada lógicamente con éxito.', null);
+    
+        } catch (ModelNotFoundException $e) {
+            DB::rollBack();
+            return ResponseFormat::response(404, 'Carga de Combustible no encontrada.', null);
+        } catch (Exception $e) {
+            DB::rollBack();
+            return ResponseFormat::exceptionResponse($e);
+        }
+    }
+    
 }

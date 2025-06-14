@@ -7,10 +7,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CargaCombustible extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'fecha', //fecha en que se ralizó la carga de combustible
@@ -26,6 +27,9 @@ class CargaCombustible extends Model
         'validado_por_id',
         'fecha_validacion',
         'estado',
+        'motivo_rechazo',
+        'deletion_reason',
+        'deleted_at'
         // 'saldo_monetario_al_momento_carga' y 'cantidad_combustible_al_momento_carga'
         // se manejan directamente en el controlador, no están en fillable.
         // Los nuevos campos 'saldo_monetario_anterior' y 'cantidad_combustible_anterior'
@@ -60,9 +64,10 @@ class CargaCombustible extends Model
 
     /**
      * Get the user who validated the charge.
-     */
+     */ 
     public function validadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'validado_por_id');
     }
 }
+

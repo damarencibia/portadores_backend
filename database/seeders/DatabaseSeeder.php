@@ -40,24 +40,24 @@ class DatabaseSeeder extends Seeder
             ->withMonthlyLimit(300.00)
             ->create();
 
-        // Crear cargas
-        CargaCombustible::factory(50)->create();
+        // // Crear cargas
+        // CargaCombustible::factory(50)->create();
 
-        // Crear retiros
-        RetiroCombustible::factory(30)->create();
+        // // Crear retiros
+        // RetiroCombustible::factory(30)->create();
 
-        // Actualizar saldos
-        $this->command->info('Actualizando saldos de Tarjetas...');
-        foreach (TarjetaCombustible::all() as $tarjeta) {
-            $totalCargasCantidad = CargaCombustible::where('tarjeta_combustible_id', $tarjeta->id)->sum('cantidad');
-            $totalCargasImporte = CargaCombustible::where('tarjeta_combustible_id', $tarjeta->id)->sum('importe');
-            $totalRetirosCantidad = RetiroCombustible::where('tarjeta_combustible_id', $tarjeta->id)->sum('cantidad');
-            $totalRetirosImporte = RetiroCombustible::where('tarjeta_combustible_id', $tarjeta->id)->sum('importe');
+        // // Actualizar saldos
+        // $this->command->info('Actualizando saldos de Tarjetas...');
+        // foreach (TarjetaCombustible::all() as $tarjeta) {
+        //     $totalCargasCantidad = CargaCombustible::where('tarjeta_combustible_id', $tarjeta->id)->sum('cantidad');
+        //     $totalCargasImporte = CargaCombustible::where('tarjeta_combustible_id', $tarjeta->id)->sum('importe');
+        //     $totalRetirosCantidad = RetiroCombustible::where('tarjeta_combustible_id', $tarjeta->id)->sum('cantidad');
+        //     $totalRetirosImporte = RetiroCombustible::where('tarjeta_combustible_id', $tarjeta->id)->sum('importe');
 
-            $tarjeta->cantidad_actual = $totalCargasCantidad - $totalRetirosCantidad;
-            $tarjeta->saldo_monetario_actual = $totalCargasImporte - $totalRetirosImporte;
-            $tarjeta->save();
-        }
-        $this->command->info('Saldos actualizados.');
+        //     $tarjeta->cantidad_actual = $totalCargasCantidad - $totalRetirosCantidad;
+        //     $tarjeta->saldo_monetario_actual = $totalCargasImporte - $totalRetirosImporte;
+        //     $tarjeta->save();
+        // }
+        // $this->command->info('Saldos actualizados.');
     }
 }
