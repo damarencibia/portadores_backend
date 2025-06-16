@@ -14,6 +14,7 @@ return new class extends Migration
     {
         Schema::create('retiro_combustibles', function (Blueprint $table) {
             $table->id();
+            $table->boolean('accesed')->default(false);
             $table->date('fecha'); // Fecha del retiro
             $table->time('hora')->nullable(); // Hora del retiro, opcional
 

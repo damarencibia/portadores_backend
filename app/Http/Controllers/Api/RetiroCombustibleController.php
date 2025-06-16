@@ -130,7 +130,7 @@ class RetiroCombustibleController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'fecha'                    => 'required|date',
-                'hora'                     => 'nullable|date_format:H:i:s', // Hora es opcional en Retiro según migración
+                'hora'                     => 'required',
                 'cantidad'                 => 'required|numeric|min:0.01', // Cantidad de combustible a retirar
                 'odometro'                 => 'required|numeric|min:0',
                 'lugar'                    => 'nullable|string|max:255',
@@ -206,7 +206,7 @@ class RetiroCombustibleController extends Controller
             // Actualizar la tarjeta con los nuevos saldos
             $tarjeta->cantidad_actual -= $request->input('cantidad');
             $tarjeta->saldo_monetario_actual -= $calculatedImporte; // Descontar el importe monetario
-            $tarjeta->consumo_cantidad_mensual_acumulado += $request->input('cantidad'); // Acumular para el límite mensual
+            // $tarjeta->consumo_cantidad_mensual_acumulado += $request->input('cantidad'); // Acumular para el límite mensual
             $tarjeta->save();
 
             // Asignar los saldos FINALES de la tarjeta (después del retiro)

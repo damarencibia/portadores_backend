@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\TarjetaCombustible;
 use App\Models\CargaCombustible; // Asegúrate de importar CargaCombustible
+use App\Models\RetiroCombustible; // Asegúrate de importar CargaCombustible
 use App\Models\TipoCombustible;
 use App\Models\Vehiculo;
 use App\Models\Empresa;
@@ -16,6 +17,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Exception;
+use PDF;
+use Illuminate\Support\Facades\Log; // Importar la fachada Log
 
 class TarjetaCombustibleController extends Controller
 {
@@ -27,35 +30,35 @@ class TarjetaCombustibleController extends Controller
         try {
             $user = auth()->user();
             $empresaId = $user->empresa_id;
-    
+
             // Paginación
             $itemsPerPage = $request->input("itemsPerPage", 20);
             $page = $request->input("page", 1);
-    
+
             // Filtros
             $search             = $request->input('search');
             $filterCombustible  = $request->input('tipo_combustible_id');
             $filterChofer       = $request->input('chofer_id');
             $filterActiva       = $request->input('activa');
-    
+
             // Base query
             $tarjetasQuery = TarjetaCombustible::with(['tipoCombustible', 'empresa', 'chofer', 'chofer.vehiculo'])
                 ->where('empresa_id', $empresaId)
                 ->when($search, function ($q, $search) {
                     $q->where(function ($q2) use ($search) {
                         $q2->where('numero',                               'like', "%{$search}%")
-                           ->orWhere('saldo_monetario_actual',             'like', "%{$search}%")
-                           ->orWhere('cantidad_actual',                    'like', "%{$search}%")
-                           ->orWhere('saldo_maximo',                       'like', "%{$search}%")
-                           ->orWhere('limite_consumo_mensual',             'like', "%{$search}%")
-                           ->orWhere('consumo_cantidad_mensual_acumulado', 'like', "%{$search}%")
-                           ->orWhere('fecha_vencimiento',                  'like', "%{$search}%");
+                            ->orWhere('saldo_monetario_actual',             'like', "%{$search}%")
+                            ->orWhere('cantidad_actual',                    'like', "%{$search}%")
+                            ->orWhere('saldo_maximo',                       'like', "%{$search}%")
+                            ->orWhere('limite_consumo_mensual',             'like', "%{$search}%")
+                            ->orWhere('consumo_cantidad_mensual_acumulado', 'like', "%{$search}%")
+                            ->orWhere('fecha_vencimiento',                  'like', "%{$search}%");
                     });
                 })
                 ->when($filterCombustible, fn($q) => $q->where('tipo_combustible_id', $filterCombustible))
                 ->when($filterChofer, fn($q) => $q->where('chofer_id', $filterChofer))
                 ->when(!is_null($filterActiva), fn($q) => $q->where('activa', $filterActiva));
-    
+
             // Datos + meta
             if ($itemsPerPage == -1) {
                 $collection = $tarjetasQuery->get();
@@ -75,7 +78,7 @@ class TarjetaCombustibleController extends Controller
                     'last_page' => $paginated->lastPage(),
                 ];
             }
-    
+
             // Mapeo
             $tarjetas = collect($collection)->map(function ($v) {
                 return [
@@ -93,19 +96,18 @@ class TarjetaCombustibleController extends Controller
                     'chofer_id'                          => optional($v->chofer)->nombre,
                 ];
             });
-    
+
             return ResponseFormat::response(
                 200,
                 'Lista de Tarjetas de Combustible obtenida con éxito.',
                 $tarjetas,
                 $meta
             );
-    
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
     }
-    
+
 
     /**
      * Crea una nueva Tarjeta de Combustible.
@@ -137,21 +139,21 @@ class TarjetaCombustibleController extends Controller
                 'chofer_id.required'               => 'El chofer es obligatorio.',
                 'chofer_id.exists'                 => 'El chofer seleccionado no existe.',
             ]);
-    
+
             if ($validator->fails()) {
                 return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
             }
-    
+
             DB::beginTransaction();
-    
+
             // Forzar la empresa del usuario autenticado
             $empresaId = auth()->user()->empresa_id;
-    
+
             $data = $request->all();
             $data['empresa_id'] = $empresaId;
             $data['cantidad_actual'] = $request->input('cantidad_actual', 0.00);
             $data['saldo_monetario_actual'] = $request->input('saldo_monetario_actual', 0.00);
-    
+
             if ($request->has('saldo_maximo') && $data['saldo_maximo'] !== null) {
                 if ($data['cantidad_actual'] > $data['saldo_maximo']) {
                     DB::rollBack();
@@ -162,18 +164,17 @@ class TarjetaCombustibleController extends Controller
                     return ResponseFormat::response(400, 'El saldo monetario actual inicial no puede ser mayor que el saldo máximo.', null);
                 }
             }
-    
+
             $tarjeta = TarjetaCombustible::create($data);
-    
+
             DB::commit();
             return ResponseFormat::response(201, 'Tarjeta de Combustible creada con éxito.', $tarjeta);
-    
         } catch (Exception $e) {
             DB::rollBack();
             return ResponseFormat::exceptionResponse($e);
         }
     }
-    
+
 
     /**
      * Muestra una Tarjeta de Combustible específica.
@@ -220,7 +221,7 @@ class TarjetaCombustibleController extends Controller
 
             // Obtener el precio del tipo de combustible.
             $precio = $tarjeta->tipoCombustible->precio;
-            
+
             // Preparar la respuesta con datos contextuales útiles.
             $data = [
                 'tarjeta_id' => (int) $id,
@@ -231,7 +232,6 @@ class TarjetaCombustibleController extends Controller
 
             // Retornar la respuesta exitosa utilizando el formato estándar.
             return ResponseFormat::response(200, 'Precio del combustible obtenido con éxito.', $data);
-
         } catch (ModelNotFoundException $e) {
             // Capturar el error específico si findOrFail no encuentra la tarjeta.
             return ResponseFormat::response(404, 'Tarjeta de Combustible no encontrada.', null);
@@ -252,7 +252,9 @@ class TarjetaCombustibleController extends Controller
             $validator = Validator::make($request->all(), [
                 'numero'                  => 'sometimes|string|max:255|unique:tarjeta_combustibles,numero,' . $id,
                 'saldo_maximo'            => [
-                    'nullable', 'numeric', 'min:0',
+                    'nullable',
+                    'numeric',
+                    'min:0',
                     function ($attribute, $value, $fail) use ($tarjeta, $request) {
                         $currentOrNewCantidadActual = $request->input('cantidad_actual', $tarjeta->cantidad_actual);
                         $currentOrNewSaldoMonetarioActual = $request->input('saldo_monetario_actual', $tarjeta->saldo_monetario_actual);
@@ -267,7 +269,9 @@ class TarjetaCombustibleController extends Controller
                     },
                 ],
                 'limite_consumo_mensual'  => [
-                    'nullable', 'numeric', 'min:0',
+                    'nullable',
+                    'numeric',
+                    'min:0',
                     function ($attribute, $value, $fail) use ($tarjeta) {
                         if ($value !== null) {
                             $currentMonthConsumption = $tarjeta->retiros()
@@ -281,7 +285,9 @@ class TarjetaCombustibleController extends Controller
                     },
                 ],
                 'cantidad_actual'         => [
-                    'nullable', 'numeric', 'min:0',
+                    'nullable',
+                    'numeric',
+                    'min:0',
                     function ($attribute, $value, $fail) use ($tarjeta, $request) {
                         if ($value !== null) {
                             $targetSaldoMaximo = $request->input('saldo_maximo', $tarjeta->saldo_maximo);
@@ -292,7 +298,9 @@ class TarjetaCombustibleController extends Controller
                     },
                 ],
                 'saldo_monetario_actual'  => [
-                    'nullable', 'numeric', 'min:0',
+                    'nullable',
+                    'numeric',
+                    'min:0',
                     function ($attribute, $value, $fail) use ($tarjeta, $request) {
                         if ($value !== null) {
                             $targetSaldoMaximo = $request->input('saldo_maximo', $tarjeta->saldo_maximo);
@@ -322,7 +330,6 @@ class TarjetaCombustibleController extends Controller
             $tarjeta->update($data);
             DB::commit();
             return ResponseFormat::response(200, 'Tarjeta de Combustible actualizada con éxito.', $tarjeta);
-
         } catch (ModelNotFoundException $e) {
             return ResponseFormat::response(404, 'Tarjeta de Combustible no encontrada.', null);
         } catch (Exception $e) {
@@ -348,7 +355,6 @@ class TarjetaCombustibleController extends Controller
             $tarjeta->delete();
             DB::commit();
             return ResponseFormat::response(200, 'Tarjeta de Combustible eliminada con éxito.', null);
-
         } catch (ModelNotFoundException $e) {
             return ResponseFormat::response(404, 'Tarjeta de Combustible no encontrada.', null);
         } catch (Exception $e) {
@@ -403,6 +409,8 @@ class TarjetaCombustibleController extends Controller
             $previousMonthDate = $startDate->copy()->subMonth();
 
             foreach ($tarjetas as $tarjeta) {
+                Log::info("--- Procesando tarjeta: {$tarjeta->numero} (ID: {$tarjeta->id}) para el mes {$month}/{$year} ---");
+
                 // Initialize values to 'No disponible'
                 $saldoMonetarioInicial = 'No disponible';
                 $cantidadCombustibleInicial = 'No disponible';
@@ -420,6 +428,9 @@ class TarjetaCombustibleController extends Controller
 
                 if ($lastCargaPreviousMonth) {
                     $saldoMonetarioInicial = $lastCargaPreviousMonth->saldo_monetario_al_momento_carga;
+                    Log::info("Última carga del mes anterior para {$tarjeta->numero}: ", $lastCargaPreviousMonth->toArray());
+                } else {
+                    Log::info("No se encontró carga en el mes anterior para {$tarjeta->numero}.");
                 }
 
                 // --- Logic for cantidad_combustible_inicial (last Retiro of previous month, then fallback to last Carga) ---
@@ -432,7 +443,9 @@ class TarjetaCombustibleController extends Controller
 
                 if ($lastRetiroPreviousMonth) {
                     $cantidadCombustibleInicial = $lastRetiroPreviousMonth->cantidad_combustible_al_momento_retiro;
+                    Log::info("Último retiro del mes anterior para {$tarjeta->numero}: ", $lastRetiroPreviousMonth->toArray());
                 } else {
+                    Log::info("No se encontró retiro en el mes anterior para {$tarjeta->numero}.");
                     // If no withdrawal, fall back to the last top-up for quantity from previous month
                     if ($lastCargaPreviousMonth) { // Reuse if already found
                         $cantidadCombustibleInicial = $lastCargaPreviousMonth->cantidad_combustible_al_momento_carga;
@@ -445,10 +458,14 @@ class TarjetaCombustibleController extends Controller
                     'saldo_monetario' => $saldoMonetarioInicial,
                     'cantidad_combustible' => $cantidadCombustibleInicial,
                 ];
+                Log::info("Saldo anterior calculado para {$tarjeta->numero}: ", $saldoAnterior);
 
                 // 3. Obtener todas las cargas y retiros del mes seleccionado
                 $cargas = $tarjeta->cargas()->whereBetween('fecha', [$startDate, $endDate])->get()->map(function ($item) {
                     $item->tipo_movimiento = 'CARGA';
+                    // Ya no forzamos 'no_chips' a null. Permitimos que el valor del modelo sea utilizado.
+                    // Si la columna 'no_chip' existe en la tabla y está vacía, será null.
+                    // Si no existe, este 'map' no la creará, pero la vista ya maneja `?? 'N/A'`.
                     return $item;
                 });
 
@@ -456,15 +473,28 @@ class TarjetaCombustibleController extends Controller
                     $item->tipo_movimiento = 'RETIRO';
                     return $item;
                 });
+                Log::info("Cargas encontradas para el mes actual para {$tarjeta->numero}: ", $cargas->toArray());
+                Log::info("Retiros encontrados para el mes actual para {$tarjeta->numero}: ", $retiros->toArray());
 
-                // Combinar y ordenar movimientos
-                $movimientos = $cargas->concat($retiros)->sortBy('fecha')->values();
+
+                // Combinar y ordenar movimientos por fecha y luego por hora
+                $movimientos = $cargas->concat($retiros)->sortBy(function ($movimiento) {
+                    return Carbon::parse($movimiento->fecha . ' ' . $movimiento->hora);
+                })->values();
+                Log::info("Movimientos combinados y ordenados para {$tarjeta->numero}: ", $movimientos->toArray());
+
 
                 // Calcular totales
                 $totalCargasCantidad = $cargas->sum('cantidad');
                 $totalCargasImporte = $cargas->sum('importe');
                 $totalRetirosCantidad = $retiros->sum('cantidad');
                 $totalRetirosImporte = $retiros->sum('importe');
+                Log::info("Totales calculados para {$tarjeta->numero}: ", [
+                    'total_cargas_cantidad' => $totalCargasCantidad,
+                    'total_cargas_importe' => $totalCargasImporte,
+                    'total_retiros_cantidad' => $totalRetirosCantidad,
+                    'total_retiros_importe' => $totalRetirosImporte,
+                ]);
 
                 // --- Logic for saldo_final (for the month being reported) ---
 
@@ -478,6 +508,9 @@ class TarjetaCombustibleController extends Controller
 
                 if ($lastCargaCurrentMonth) {
                     $saldoMonetarioFinalMesReporte = $lastCargaCurrentMonth->saldo_monetario_al_momento_carga;
+                    Log::info("Última carga del mes actual para {$tarjeta->numero}: ", $lastCargaCurrentMonth->toArray());
+                } else {
+                    Log::info("No se encontró carga en el mes actual para {$tarjeta->numero}.");
                 }
 
                 // Last Retiro of the current report month for final quantity balance
@@ -490,7 +523,9 @@ class TarjetaCombustibleController extends Controller
 
                 if ($lastRetiroCurrentMonth) {
                     $cantidadCombustibleFinalMesReporte = $lastRetiroCurrentMonth->cantidad_combustible_al_momento_retiro;
+                    Log::info("Último retiro del mes actual para {$tarjeta->numero}: ", $lastRetiroCurrentMonth->toArray());
                 } else {
+                    Log::info("No se encontró retiro en el mes actual para {$tarjeta->numero}.");
                     // If no withdrawal, fall back to the last top-up for quantity from current month
                     if ($lastCargaCurrentMonth) { // Reuse if already found
                         $cantidadCombustibleFinalMesReporte = $lastCargaCurrentMonth->cantidad_combustible_al_momento_carga;
@@ -498,6 +533,11 @@ class TarjetaCombustibleController extends Controller
                         $cantidadCombustibleFinalMesReporte = 'No disponible';
                     }
                 }
+                Log::info("Saldo final calculado para {$tarjeta->numero}: ", [
+                    'saldo_monetario_final' => $saldoMonetarioFinalMesReporte,
+                    'cantidad_combustible_final' => $cantidadCombustibleFinalMesReporte,
+                ]);
+
 
                 // 4. Construir la información de la tarjeta para el reporte
                 $reportData[] = [
@@ -505,7 +545,7 @@ class TarjetaCombustibleController extends Controller
                         'tarjeta_id' => $tarjeta->id,
                         'numero' => $tarjeta->numero,
                         'chofer_nombre' => $tarjeta->chofer ? $tarjeta->chofer->nombre . ' ' . $tarjeta->chofer->apellidos : 'N/A',
-                        'fecha_vencimiento' => $tarjeta->fecha_vencimiento->format('Y-m-d'),
+                        'fecha_vencimiento' => $tarjeta->fecha_vencimiento,
                         'vehiculo_chapa' => $tarjeta->chofer && $tarjeta->chofer->vehiculo ? $tarjeta->chofer->vehiculo->chapa : 'N/A',
                         'tipo_combustible_nombre' => $tarjeta->tipoCombustible ? $tarjeta->tipoCombustible->nombre : 'N/A',
                         'tipo_combustible_precio' => $tarjeta->tipoCombustible ? $tarjeta->tipoCombustible->precio : 'N/A',
@@ -527,9 +567,23 @@ class TarjetaCombustibleController extends Controller
                 ];
             }
 
-            return ResponseFormat::response(200, 'Reporte de consumo de combustible generado con éxito.', $reportData);
+            // --- Generación del PDF ---
+            // Puedes pasar la colección de reportData a la vista Blade
+            $pdf = PDF::loadView('reporte_combustible', ['reportData' => $reportData]);
 
+            // Define el nombre del archivo PDF
+            $fileName = 'reporte_consumo_combustible_' . $year . '_' . $month . '.pdf';
+
+            // Opciones:
+            // return $pdf->download($fileName); // Para descargar el PDF
+            return response($pdf->output(), 200)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="' . $fileName . '"')
+                ->header('Access-Control-Allow-Origin', '*')
+                ->header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+                ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         } catch (Exception $e) {
+            Log::error("Error en calculateConsumoCombustible: " . $e->getMessage(), ['exception' => $e]); // Log del error
             return ResponseFormat::exceptionResponse($e);
         }
     }

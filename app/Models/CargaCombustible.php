@@ -14,6 +14,7 @@ class CargaCombustible extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'accesed',
         'fecha', //fecha en que se ralizó la carga de combustible
         'hora', //hora en que se ralizó la carga de combustible
         'tarjeta_combustible_id', //tarjeta de combustible que será recargada con combustible y se le descontará su saldo prinicpal

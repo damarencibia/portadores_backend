@@ -3,18 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Vehiculo;
-use App\Models\VehiculoInoperatividad;
-use App\Models\Empresa;
-use App\Models\TipoCombustible;
-use App\Models\Chofer;
+use App\Models\Vehiculo; // Assuming Vehiculo model is in App\Models
+use App\Models\VehiculoInoperatividad; // Assuming VehiculoInoperatividad model is in App\Models
+use App\Models\TarjetaCombustible; // Needed for the example calculateConsumoCombustible
+use App\Models\CargaCombustible;    // Needed for the example calculateConsumoCombustible
+use App\Models\RetiroCombustible;   // Needed for the example calculateConsumoCombustible
 use App\Utils\ResponseFormat;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 use Exception;
+use Carbon\Carbon;
+use PDF; // Asegúrate de haber configurado el alias en config/app.php para barryvdh/laravel-dompdf
+use Illuminate\Support\Facades\Log; // For logging in the example method
 
 class VehiculoController extends Controller
 {
@@ -26,33 +27,33 @@ class VehiculoController extends Controller
         try {
             $user = auth()->user();
             $empresaId = $user->empresa_id;
-    
+
             // Paginación
             $itemsPerPage = $request->input("itemsPerPage", 20);
             $page         = $request->input("page", 1);
-    
+
             // Filtros
             $search             = $request->input('search');
             $filterTipo         = $request->input('tipo_vehiculo');
             $filterCombustible  = $request->input('tipo_combustible_id');
             $filterEstado       = $request->input('estado_tecnico');
             $filterChofer       = $request->input('chofer_id');
-    
+
             $vehiculosQuery = Vehiculo::with(['empresa', 'tipoCombustible', 'chofer'])
                 ->where('empresa_id', $empresaId)
                 ->when($search, function ($q, $search) {
                     $q->where(function ($q2) use ($search) {
                         $q2->where('numero_interno',    'like', "%{$search}%")
-                           ->orWhere('marca',           'like', "%{$search}%")
-                           ->orWhere('modelo',          'like', "%{$search}%")
-                           ->orWhere('ano',             'like', "%{$search}%")
-                           ->orWhere('indice_consumo',  'like', "%{$search}%")
-                           ->orWhere('prueba_litro',    'like', "%{$search}%")
-                           ->orWhere('ficav',           'like', "%{$search}%")
-                           ->orWhere('capacidad_tanque','like', "%{$search}%")
-                           ->orWhere('color',           'like', "%{$search}%")
-                           ->orWhere('numero_motor',    'like', "%{$search}%")
-                           ->orWhere('numero_chasis',   'like', "%{$search}%");
+                            ->orWhere('marca',           'like', "%{$search}%")
+                            ->orWhere('modelo',          'like', "%{$search}%")
+                            ->orWhere('ano',             'like', "%{$search}%")
+                            ->orWhere('indice_consumo',  'like', "%{$search}%")
+                            ->orWhere('prueba_litro',    'like', "%{$search}%")
+                            ->orWhere('ficav',           'like', "%{$search}%")
+                            ->orWhere('capacidad_tanque', 'like', "%{$search}%")
+                            ->orWhere('color',           'like', "%{$search}%")
+                            ->orWhere('numero_motor',    'like', "%{$search}%")
+                            ->orWhere('numero_chasis',   'like', "%{$search}%");
                     });
                 })
                 ->when($filterTipo, function ($q, $tipo) {
@@ -67,13 +68,13 @@ class VehiculoController extends Controller
                 ->when($filterChofer, function ($q, $choferId) {
                     $q->where('chofer_id', $choferId);
                 });
-    
+
             // Obtener datos
             $paginated     = $itemsPerPage == -1
                 ? $vehiculosQuery->get()
                 : $vehiculosQuery->paginate($itemsPerPage, ['*'], 'page', $page);
             $vehiculosRaw  = $itemsPerPage != -1 ? $paginated->items() : $paginated;
-    
+
             // Mapeo en el mismo orden que los headers
             $vehiculos = collect($vehiculosRaw)->map(function ($v) {
                 return [
@@ -96,7 +97,7 @@ class VehiculoController extends Controller
                     'estado_tecnico'       => $v->estado_tecnico,
                 ];
             });
-    
+
             // Meta
             $meta = [
                 'total'     => $itemsPerPage != -1 ? $paginated->total() : count($paginated),
@@ -104,16 +105,12 @@ class VehiculoController extends Controller
                 'page'      => $itemsPerPage != -1 ? $paginated->currentPage() : 1,
                 'last_page' => $itemsPerPage != -1 ? $paginated->lastPage() : 1,
             ];
-    
+
             return ResponseFormat::response(200, 'Lista de Vehículos obtenida con éxito.', $vehiculos, $meta);
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
     }
-    
-    
-    
-
     /**
      * Crea un nuevo Vehículo.
      */
@@ -140,30 +137,41 @@ class VehiculoController extends Controller
             ], [
                 // mensajes de error...
             ]);
-    
+
             if ($validator->fails()) {
                 return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
             }
-    
+
             DB::beginTransaction();
-    
+
             // Obtenemos la empresa del usuario logueado
             $empresaId = auth()->user()->empresa_id;
-    
+
             // Creamos el vehículo mezclando la empresa_id fija
             $vehiculo = Vehiculo::create(array_merge(
                 $request->only([
-                    'numero_interno','marca','modelo','tipo_vehiculo','ano',
-                    'tipo_combustible_id','indice_consumo','prueba_litro','ficav',
-                    'capacidad_tanque','color','chapa','numero_motor',
-                    'numero_chasis','estado_tecnico','chofer_id'
+                    'numero_interno',
+                    'marca',
+                    'modelo',
+                    'tipo_vehiculo',
+                    'ano',
+                    'tipo_combustible_id',
+                    'indice_consumo',
+                    'prueba_litro',
+                    'ficav',
+                    'capacidad_tanque',
+                    'color',
+                    'chapa',
+                    'numero_motor',
+                    'numero_chasis',
+                    'estado_tecnico',
+                    'chofer_id'
                 ]),
                 ['empresa_id' => $empresaId]
             ));
-    
+
             DB::commit();
             return ResponseFormat::response(201, 'Vehículo creado con éxito.', $vehiculo);
-    
         } catch (Exception $e) {
             DB::rollBack();
             return ResponseFormat::exceptionResponse($e);
@@ -180,7 +188,6 @@ class VehiculoController extends Controller
                 ->findOrFail($id);
 
             return ResponseFormat::response(200, 'Vehículo obtenido con éxito.', $vehiculo);
-
         } catch (ModelNotFoundException $e) {
             return ResponseFormat::response(404, 'Vehículo no encontrado.', null);
         } catch (Exception $e) {
@@ -195,7 +202,7 @@ class VehiculoController extends Controller
     {
         try {
             $vehiculo = Vehiculo::findOrFail($id);
-    
+
             $validator = Validator::make($request->all(), [
                 'numero_interno'      => 'nullable|string|max:255|unique:vehiculos,numero_interno,' . $id,
                 'marca'               => 'sometimes|string|max:255',
@@ -216,29 +223,40 @@ class VehiculoController extends Controller
             ], [
                 // mensajes de error...
             ]);
-    
+
             if ($validator->fails()) {
                 return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
             }
-    
+
             DB::beginTransaction();
-    
+
             // Nos aseguramos de que la empresa no cambie
             $data = $request->only([
-                'numero_interno','marca','modelo','tipo_vehiculo','ano',
-                'tipo_combustible_id','indice_consumo','prueba_litro','ficav',
-                'capacidad_tanque','color','chapa','numero_motor',
-                'numero_chasis','estado_tecnico','chofer_id'
+                'numero_interno',
+                'marca',
+                'modelo',
+                'tipo_vehiculo',
+                'ano',
+                'tipo_combustible_id',
+                'indice_consumo',
+                'prueba_litro',
+                'ficav',
+                'capacidad_tanque',
+                'color',
+                'chapa',
+                'numero_motor',
+                'numero_chasis',
+                'estado_tecnico',
+                'chofer_id'
             ]);
-    
+
             // Siempre forzamos la misma empresa del usuario
             $data['empresa_id'] = auth()->user()->empresa_id;
-    
+
             $vehiculo->update($data);
-    
+
             DB::commit();
             return ResponseFormat::response(200, 'Vehículo actualizado con éxito.', $vehiculo);
-    
         } catch (ModelNotFoundException $e) {
             return ResponseFormat::response(404, 'Vehículo no encontrado.', null);
         } catch (Exception $e) {
@@ -261,7 +279,6 @@ class VehiculoController extends Controller
             DB::commit();
 
             return ResponseFormat::response(200, 'Vehículo eliminado con éxito.', null);
-
         } catch (ModelNotFoundException $e) {
             return ResponseFormat::response(404, 'Vehículo no encontrado.', null);
         } catch (Exception $e) {
@@ -288,135 +305,129 @@ class VehiculoController extends Controller
             $validator = Validator::make($request->all(), [
                 'year'        => 'required|integer|min:1900|max:' . (date('Y') + 1),
                 'month'       => 'required|integer|min:1|max:12',
-                'vehiculo_id' => 'nullable|integer|exists:vehiculos,id', // 'nullable' permite que sea opcional
+                'vehiculo_id' => 'nullable|integer|exists:vehiculos,id',
             ]);
 
             if ($validator->fails()) {
                 return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($validator), $validator->errors());
             }
 
-            $year = $request->input('year');
-            $month = $request->input('month');
-            $vehiculoId = $request->input('vehiculo_id'); // Obtener el ID del vehículo si se proporciona
+            $year       = $request->input('year');
+            $month      = $request->input('month');
+            $vehiculoId = $request->input('vehiculo_id');
 
-            // Definir el inicio y fin del mes de reporte
-            $startOfMonth = Carbon::create($year, $month, 1)->startOfDay();
-            $endOfMonth = Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
+            // Fechas del mes de reporte
+            $startOfMonth     = Carbon::create($year, $month, 1)->startOfDay();
+            $endOfMonth       = Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
             $totalDaysInMonth = $startOfMonth->daysInMonth;
 
-            // 2. Obtener los vehículos a procesar
-            // Si se proporciona un vehiculo_id, obtener solo ese vehículo.
-            // Si no, obtener todos los vehículos.
-            if ($vehiculoId) {
-                $vehicles = Vehiculo::where('id', $vehiculoId)->get();
-            } else {
-                $vehicles = Vehiculo::all();
-            }
+            // Obtener los vehículos
+            $vehicles = $vehiculoId
+                ? Vehiculo::where('id', $vehiculoId)->get()
+                : Vehiculo::all();
 
-            $results = []; // Array para almacenar los resultados individuales de cada vehículo
+            $results = [];
+            $totOp   = 0;
+            $totPar  = 0;
+            $totWork = 0;
 
-            // Variables para el CDT total del parque automotor
-            $totalOperationalDaysForAllVehicles = 0;
-            $totalWorkingDaysForAllVehicles = 0;
-            $totalParalyzedDaysForAllVehicles = 0;
-
-            // 3. Iterar sobre cada vehículo para calcular su CDT individual
             foreach ($vehicles as $vehiculo) {
-                $operationalDaysForVehicle = $totalDaysInMonth; // Días operativos para este vehículo en el mes
-                $currentParalyzedDays = 0; // Días paralizados acumulados para este vehículo
+                $operationalDays = $totalDaysInMonth;
+                $paralyzedDays   = 0;
 
-                // Obtener las inoperatividades del vehículo
-                $inoperatividades = $vehiculo->inoperatividades()->get();
+                $inops = $vehiculo->inoperatividades()
+                    ->where(function ($q) use ($startOfMonth, $endOfMonth) {
+                        $q->where(function ($q2) use ($startOfMonth, $endOfMonth) {
+                            $q2->whereBetween('fecha_salida_servicio',   [$startOfMonth, $endOfMonth])
+                                ->whereBetween('fecha_reanudacion_servicio', [$startOfMonth, $endOfMonth]);
+                        })->orWhere(function ($q2) use ($startOfMonth, $endOfMonth) {
+                            $q2->where('fecha_salida_servicio', '<', $startOfMonth)
+                                ->where(function ($sq) use ($startOfMonth, $endOfMonth) {
+                                    $sq->whereNull('fecha_reanudacion_servicio')
+                                        ->orWhereBetween('fecha_reanudacion_servicio', [$startOfMonth, $endOfMonth])
+                                        ->orWhere('fecha_reanudacion_servicio', '>', $endOfMonth);
+                                });
+                        })->orWhere(function ($q2) use ($startOfMonth, $endOfMonth) {
+                            $q2->whereBetween('fecha_salida_servicio', [$startOfMonth, $endOfMonth])
+                                ->where(function ($sq) use ($endOfMonth) {
+                                    $sq->whereNull('fecha_reanudacion_servicio')
+                                        ->orWhere('fecha_reanudacion_servicio', '>', $endOfMonth);
+                                });
+                        });
+                    })
+                    ->get();
 
-                foreach ($inoperatividades as $inoperatividad) {
-                    $salida = Carbon::parse($inoperatividad->fecha_salida_servicio)->startOfDay();
+                foreach ($inops as $inop) {
+                    $salida      = Carbon::parse($inop->fecha_salida_servicio)->startOfDay();
+                    $reanudacion = $inop->fecha_reanudacion_servicio
+                        ? Carbon::parse($inop->fecha_reanudacion_servicio)->startOfDay()
+                        : Carbon::now()->startOfDay()->min($endOfMonth);
 
-                    if (is_null($inoperatividad->fecha_reanudacion_servicio)) {
-                        // Si la avería aún está activa, la fecha de reanudación es el inicio del día actual
-                        // o el final del mes de reporte, lo que ocurra primero.
-                        $reanudacion = Carbon::now()->startOfDay();
-                        $reanudacion = $reanudacion->min($endOfMonth);
-                    } else {
-                        // Si la avería ya terminó, la fecha de reanudación es el final del día de reanudación.
-                        $reanudacion = Carbon::parse($inoperatividad->fecha_reanudacion_servicio)->endOfDay();
-                    }
-
-                    // Calcular el período de superposición de la avería con el mes de reporte
                     $overlapStart = $salida->max($startOfMonth);
-                    $overlapEnd = $reanudacion->min($endOfMonth);
+                    $overlapEnd   = $reanudacion->min($endOfMonth);
 
                     if ($overlapStart->lte($overlapEnd)) {
-                        // Aseguramos que ambas fechas están al inicio del día para un cálculo preciso de diffInDays
-                        $startForDiff = $overlapStart->copy()->startOfDay();
-                        $endForDiff = $overlapEnd->copy()->startOfDay();
-
-                        // Calcular la diferencia en días, incluyendo el día de inicio
-                        $daysInoperable = $startForDiff->diffInDays($endForDiff) + 1;
-                        $currentParalyzedDays += $daysInoperable;
+                        $dias         = $overlapStart->diffInDays($overlapEnd) + 1;
+                        $paralyzedDays += $dias;
                     }
                 }
 
-                // Redondear los días paralizados a un número entero
-                $paralyzedDaysForVehicle = round($currentParalyzedDays);
+                $paralyzedDays = min($operationalDays, round($paralyzedDays));
+                $workingDays   = max(0, $operationalDays - $paralyzedDays);
+                $cdt           = $operationalDays > 0 ? ($workingDays / $operationalDays) * 100 : 0;
 
-                // Asegurarse de que los días paralizados no excedan los días totales del mes
-                $paralyzedDaysForVehicle = min($paralyzedDaysForVehicle, $totalDaysInMonth);
-
-                // Calcular los días trabajando para este vehículo
-                $workingDaysForVehicle = $operationalDaysForVehicle - $paralyzedDaysForVehicle;
-                $workingDaysForVehicle = max(0, $workingDaysForVehicle); // Asegurar que no sea negativo
-
-                // Calcular el CDT individual del vehículo
-                $cdtForVehicle = ($operationalDaysForVehicle > 0) ? ($workingDaysForVehicle / $operationalDaysForVehicle) * 100 : 0;
-
-                // Añadir los resultados individuales al array de resultados
                 $results[] = [
-                    'vehiculo_id'                   => $vehiculo->id,
-                    'chapa'                         => $vehiculo->chapa,
-                    'tipo_vehiculo'                 => $vehiculo->tipo_vehiculo,
-                    'dias_operativos_mes'           => $operationalDaysForVehicle,
-                    'dias_paralizado_por_averias'   => $paralyzedDaysForVehicle,
-                    'dias_trabajando'               => $workingDaysForVehicle,
-                    'CDT'                           => round($cdtForVehicle, 2),
+                    'vehiculo_id'                 => $vehiculo->id,
+                    'chapa'                       => $vehiculo->chapa,
+                    'tipo_vehiculo'               => $vehiculo->tipo_vehiculo,
+                    'dias_operativos_mes'         => $operationalDays,
+                    'dias_paralizado_por_averias' => $paralyzedDays,
+                    'dias_trabajando'             => $workingDays,
+                    'CDT'                         => round($cdt, 2),
                 ];
 
-                // 4. Acumular para el CDT total si no se está filtrando por un vehículo específico
                 if (!$vehiculoId) {
-                    $totalOperationalDaysForAllVehicles += $operationalDaysForVehicle;
-                    $totalParalyzedDaysForAllVehicles += $paralyzedDaysForVehicle;
-                    $totalWorkingDaysForAllVehicles += $workingDaysForVehicle;
+                    $totOp   += $operationalDays;
+                    $totPar  += $paralyzedDays;
+                    $totWork += $workingDays;
                 }
             }
 
-            // 5. Calcular y añadir el CDT total si no se filtró por un vehículo específico
+            $reportData = [
+                'vehiculos_data'  => $results,
+                'mes_reporte_str' => Carbon::create($year, $month, 1)->locale('es')->monthName . ' ' . $year,
+            ];
+
             if (!$vehiculoId) {
-                $totalCdt = ($totalOperationalDaysForAllVehicles > 0)
-                            ? ($totalWorkingDaysForAllVehicles / $totalOperationalDaysForAllVehicles) * 100
-                            : 0;
-
-                $responseMessage = 'Reporte CDT generado con éxito (basado en averías).';
-                return ResponseFormat::response(200, $responseMessage, [
-                    'vehiculos_data' => $results, // Los datos de cada vehículo individual
-                    'reporte_total' => [
-                        'dias_operativos_totales'           => $totalOperationalDaysForAllVehicles,
-                        'dias_paralizado_por_averias_totales' => $totalParalyzedDaysForAllVehicles,
-                        'dias_trabajando_totales'           => $totalWorkingDaysForAllVehicles,
-                        'CDT_total_parque'                  => round($totalCdt, 2),
-                    ]
-                ]);
-
+                $cdtTotal = $totOp > 0 ? ($totWork / $totOp) * 100 : 0;
+                $reportData['reporte_total'] = [
+                    'dias_operativos_totales'          => $totOp,
+                    'dias_paralizado_por_averias_totales' => $totPar,
+                    'dias_trabajando_totales'          => $totWork,
+                    'CDT_total_parque'                 => round($cdtTotal, 2),
+                ];
             } else {
-                // Si se filtró por un vehículo específico, simplemente retornamos los resultados de ese vehículo.
-                $responseMessage = 'Reporte CDT generado con éxito para vehículo ' . $vehiculo->chapa . '.';
-                return ResponseFormat::response(200, $responseMessage, [
-                    'vehiculos_data' => $results
-                ]);
+                $reportData['vehiculo_chapa_reporte'] = $vehicles->first()->chapa ?? '';
             }
 
+            // --- Generar el PDF ---
+            $pdf = PDF::loadView('reporte_cdt', $reportData);
+
+            $fileName = 'reporte_cdt_' . $year . '_' . $month
+                . ($vehiculoId && $vehicles->isNotEmpty() ? '_' . $vehicles->first()->chapa : '')
+                . '.pdf';
+
+            return response($pdf->output(), 200)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="' . $fileName . '"')
+                ->header('Access-Control-Allow-Origin', '*')
+                ->header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+                ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                // Crucial for exposing Content-Disposition to JavaScript
+                ->header('Access-Control-Expose-Headers', 'Content-Disposition'); // <--- ADD THIS LINE
         } catch (Exception $e) {
+            Log::error("Error en calculateCdt: " . $e->getMessage(), ['exception' => $e]);
             return ResponseFormat::exceptionResponse($e);
         }
     }
-    
-
 }
