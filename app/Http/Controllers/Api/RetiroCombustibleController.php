@@ -23,16 +23,23 @@ class RetiroCombustibleController extends Controller
     public function index(Request $request)
     {
         try {
-            $itemsPerPage      = $request->input("itemsPerPage", 20);
-            $page              = $request->input("page", 1);
-            $tarjetaId         = $request->input("tarjeta_combustible_id");
-            $choferId          = $request->input("chofer_id");
+            $itemsPerPage = $request->input("itemsPerPage", 20);
+            $page = $request->input("page", 1);
+            $tarjetaId = $request->input("tarjeta_combustible_id");
+            $choferId = $request->input("chofer_id");
             $tipoCombustibleId = $request->input("tipo_combustible_id");
-            $registradorId     = $request->input("registrado_por_id");
-            $search            = $request->input("search");
-            $withTrashed       = filter_var($request->input("with_trashed", false), FILTER_VALIDATE_BOOLEAN);
+            $registradorId = $request->input("registrado_por_id");
+            $search = $request->input("search");
+            $withTrashed = filter_var($request->input("with_trashed", false), FILTER_VALIDATE_BOOLEAN);
+
+            // Get the authenticated user's empresa_id
+            $empresaId = auth()->user()->empresa_id;
 
             $retirosQuery = RetiroCombustible::query()
+                // Add the filter by authenticated user's empresa_id
+                ->whereHas('tarjetaCombustible.chofer.empresa', function ($query) use ($empresaId) {
+                    $query->where('id', $empresaId);
+                })
                 ->when($withTrashed, fn($q) => $q->withTrashed()) // Incluye eliminados si se pide
                 ->with([
                     'registradoPor',
@@ -41,15 +48,23 @@ class RetiroCombustibleController extends Controller
                     'tarjetaCombustible.chofer'
                 ])
                 ->when($tarjetaId, fn($q) => $q->where('tarjeta_combustible_id', $tarjetaId))
-                ->when($choferId, fn($q) =>
+                ->when(
+                    $choferId,
+                    fn($q) =>
                     $q->whereHas('tarjetaCombustible', fn($q2) => $q2->where('chofer_id', $choferId))
                 )
-                ->when($tipoCombustibleId, fn($q) =>
-                    $q->whereHas('tarjetaCombustible.tipoCombustible', fn($q2) =>
+                ->when(
+                    $tipoCombustibleId,
+                    fn($q) =>
+                    $q->whereHas(
+                        'tarjetaCombustible.tipoCombustible',
+                        fn($q2) =>
                         $q2->where('id', $tipoCombustibleId)
                     )
                 )
-                ->when($registradorId, fn($q) =>
+                ->when(
+                    $registradorId,
+                    fn($q) =>
                     $q->where('registrado_por_id', $registradorId)
                 )
                 ->when($search, function ($query) use ($search) {
@@ -60,7 +75,9 @@ class RetiroCombustibleController extends Controller
                             ->orWhere('importe', 'like', "%{$search}%")
                             ->orWhere('cantidad', 'like', "%{$search}%")
                             ->orWhere('odometro', 'like', "%{$search}%")
-                            ->orWhereHas('tarjetaCombustible', fn($q2) =>
+                            ->orWhereHas(
+                                'tarjetaCombustible',
+                                fn($q2) =>
                                 $q2->where('numero', 'like', "%{$search}%")
                             );
                     });
@@ -70,56 +87,85 @@ class RetiroCombustibleController extends Controller
             if ($itemsPerPage == -1) {
                 $collection = $retirosQuery->get();
                 $meta = [
-                    'total'     => $collection->count(),
-                    'perPage'   => $collection->count(),
-                    'page'      => 1,
+                    'total' => $collection->count(),
+                    'perPage' => $collection->count(),
+                    'page' => 1,
                     'last_page' => 1,
                 ];
             } else {
                 $paginated = $retirosQuery->paginate($itemsPerPage, ['*'], 'page', $page);
                 $collection = $paginated->items();
                 $meta = [
-                    'total'     => $paginated->total(),
-                    'perPage'   => $paginated->perPage(),
-                    'page'      => $paginated->currentPage(),
+                    'total' => $paginated->total(),
+                    'perPage' => $paginated->perPage(),
+                    'page' => $paginated->currentPage(),
                     'last_page' => $paginated->lastPage(),
                 ];
             }
 
             $retiros = collect($collection)->map(function ($retiro) {
                 return [
-                    'id'                               => $retiro->id,
-                    'fecha'                            => $retiro->fecha,
-                    'hora'                             => $retiro->hora,
-                    'tarjeta_combustible'              => optional($retiro->tarjetaCombustible)->numero,
-                    'tipo_combustible'                 => optional($retiro->tarjetaCombustible?->tipoCombustible)->nombre,
-                    'chofer'                           => optional($retiro->tarjetaCombustible?->chofer)->nombre,
-                    'cantidad'                         => $retiro->cantidad,
-                    'importe'                          => $retiro->importe,
-                    'odometro'                         => $retiro->odometro,
-                    'lugar'                            => $retiro->lugar,
-                    'motivo'                           => $retiro->motivo,
-                    'no_chip'                          => $retiro->no_chip,
-                    'registrado_por'                   => optional($retiro->registradoPor)->name,
-                    'validado_por'                     => optional($retiro->validadoPor)->name,
-                    'fecha_validacion'                 => $retiro->fecha_validacion,
-                    'estado'                           => $retiro->estado,
-                    'motivo_rechazo'                   => $retiro->motivo_rechazo,
-                    'cantidad_combustible_anterior'    => $retiro->cantidad_combustible_anterior,
+                    'id' => $retiro->id,
+                    'accessed' => $retiro->accessed,
+                    'fecha' => $retiro->fecha,
+                    'hora' => $retiro->hora,
+                    'tarjeta_combustible' => optional($retiro->tarjetaCombustible)->numero,
+                    'tipo_combustible' => optional($retiro->tarjetaCombustible?->tipoCombustible)->nombre,
+                    'chofer' => optional($retiro->tarjetaCombustible?->chofer)->nombre,
+                    'cantidad' => $retiro->cantidad,
+                    'importe' => $retiro->importe,
+                    'odometro' => $retiro->odometro,
+                    'lugar' => $retiro->lugar,
+                    'motivo' => $retiro->motivo,
+                    'no_chip' => $retiro->no_chip,
+                    'registrado_por' => optional($retiro->registradoPor)->name,
+                    'validado_por' => optional($retiro->validadoPor)->name,
+                    'fecha_validacion' => $retiro->fecha_validacion,
+                    'estado' => $retiro->estado,
+                    'motivo_rechazo' => $retiro->motivo_rechazo,
+                    'cantidad_combustible_anterior' => $retiro->cantidad_combustible_anterior,
                     'cantidad_combustible_al_momento_retiro' => $retiro->cantidad_combustible_al_momento_retiro,
-                    'eliminado'                        => $retiro->trashed(),
-                    'deleted_at'                       => $retiro->deleted_at,
-                    'deletion_reason'                  => $retiro->deletion_reason,
+                    'eliminado' => $retiro->trashed(),
+                    'deleted_at' => $retiro->deleted_at,
+                    'deletion_reason' => $retiro->deletion_reason,
                 ];
             });
 
             return ResponseFormat::response(200, 'Lista de Retiros de Combustible obtenida con éxito.', $retiros, $meta);
-
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
     }
 
+    public function getAccessedChargeIds()
+    {
+        try {
+            // Get the authenticated user's empresa_id
+            $empresaId = auth()->user()->empresa_id;
+
+            // Get RetiroCombustible records where 'accessed' is false
+            // AND belong to the user's company through tarjetaCombustible, chofer, and empresa relations
+            $accessedWithdrawals = RetiroCombustible::where('accessed', false)
+                ->whereHas('tarjetaCombustible.chofer.empresa', function ($query) use ($empresaId) {
+                    $query->where('id', $empresaId);
+                })
+                ->pluck('id') // Get only the 'id' column
+                ->toArray(); // Convert the collection to a plain PHP array
+
+            $count = count($accessedWithdrawals);
+
+            return ResponseFormat::response(
+                200,
+                "Se encontraron {$count} retiros con 'accessed' en falso para la empresa del usuario.",
+                [
+                    'count' => $count,
+                    'ids' => $accessedWithdrawals,
+                ]
+            );
+        } catch (Exception $e) {
+            return ResponseFormat::exceptionResponse($e);
+        }
+    }
 
     /**
      * Crea un nuevo Retiro de Combustible.
@@ -181,8 +227,8 @@ class RetiroCombustibleController extends Controller
             // Validar el límite diario de consumo
             // Obtener todos los retiros de hoy para esta tarjeta
             $retirosHoy = RetiroCombustible::where('tarjeta_combustible_id', $tarjeta->id)
-                                          ->whereDate('fecha', Carbon::today())
-                                          ->sum('cantidad');
+                ->whereDate('fecha', Carbon::today())
+                ->sum('cantidad');
             $projectedConsumoDiario = $retirosHoy + $request->input('cantidad');
             if ($tarjeta->limite_consumo_diario !== null && $projectedConsumoDiario > $tarjeta->limite_consumo_diario) {
                 DB::rollBack();
@@ -197,6 +243,15 @@ class RetiroCombustibleController extends Controller
                 'cantidad_combustible_anterior' // Asegurarse de excluir estos campos de la solicitud
             ]);
             $dataToCreate['importe'] = $calculatedImporte;
+
+            // --- Lógica para establecer 'accessed' basada en el rol del usuario autenticado ---
+            $user = Auth::user();
+            if ($user && $user->roles === 'supervisor') {
+                $dataToCreate['accessed'] = true; // Set to true (or 1) for supervisors
+            } else {
+                $dataToCreate['accessed'] = false; // Set to false (or 0) for others by default
+            }
+            // --- Fin de la lógica de 'accessed' ---
 
             $retiro = RetiroCombustible::create($dataToCreate);
 
@@ -215,7 +270,6 @@ class RetiroCombustibleController extends Controller
 
             DB::commit();
             return ResponseFormat::response(201, 'Retiro de Combustible registrado con éxito y saldos de tarjeta actualizados.', $retiro);
-
         } catch (ModelNotFoundException $e) {
             DB::rollBack();
             return ResponseFormat::response(404, 'Tarjeta de Combustible no encontrada.', null);
@@ -246,22 +300,41 @@ class RetiroCombustibleController extends Controller
                 ])
                 ->where('id', $id)
                 ->when($tarjetaId, fn($q) => $q->where('tarjeta_combustible_id', $tarjetaId))
-                ->when($choferId, fn($q) =>
+                ->when(
+                    $choferId,
+                    fn($q) =>
                     $q->whereHas('tarjetaCombustible', fn($q2) => $q2->where('chofer_id', $choferId))
                 )
-                ->when($tipoCombustibleId, fn($q) =>
-                    $q->whereHas('tarjetaCombustible.tipoCombustible', fn($q2) =>
+                ->when(
+                    $tipoCombustibleId,
+                    fn($q) =>
+                    $q->whereHas(
+                        'tarjetaCombustible.tipoCombustible',
+                        fn($q2) =>
                         $q2->where('id', $tipoCombustibleId)
                     )
                 )
-                ->when($registradorId, fn($q) =>
+                ->when(
+                    $registradorId,
+                    fn($q) =>
                     $q->where('registrado_por_id', $registradorId)
                 );
 
             $retiro = $query->firstOrFail();
 
+            // 👉 Lógica para cambiar accessed según el rol
+            $user = Auth::user();
+            if ($user && $user->roles === 'supervisor') {
+                $retiro->accessed = true;
+            } else {
+                $retiro->accessed = false;
+            }
+
+            $retiro->save();
+
             $responseData = [
                 'id'                               => $retiro->id,
+                'accessed'                         => $retiro->accessed,
                 'fecha'                            => $retiro->fecha,
                 'hora'                             => $retiro->hora,
                 'tarjeta_combustible'              => optional($retiro->tarjetaCombustible)->numero,
@@ -287,7 +360,6 @@ class RetiroCombustibleController extends Controller
             ];
 
             return ResponseFormat::response(200, 'Retiro de Combustible obtenido con éxito.', $responseData);
-
         } catch (ModelNotFoundException $e) {
             return ResponseFormat::response(404, 'Retiro de Combustible no encontrado con los filtros aplicados.', null);
         } catch (Exception $e) {
@@ -352,7 +424,7 @@ class RetiroCombustibleController extends Controller
 
             // En este punto, los saldos de la tarjeta reflejan el estado justo ANTES del retiro original.
             if ($retiro->cantidad_combustible_anterior === null) {
-                 $retiro->cantidad_combustible_anterior = $tarjeta->cantidad_actual;
+                $retiro->cantidad_combustible_anterior = $tarjeta->cantidad_actual;
             }
 
             // Aplicar los efectos del nuevo retiro (o los valores actualizados)
@@ -366,15 +438,15 @@ class RetiroCombustibleController extends Controller
             }
 
             if ($projectedSaldoMonetarioActual < 0) {
-                 DB::rollBack();
-                 return ResponseFormat::response(400, 'La actualización excede el saldo monetario disponible en la tarjeta.', null);
+                DB::rollBack();
+                return ResponseFormat::response(400, 'La actualización excede el saldo monetario disponible en la tarjeta.', null);
             }
 
             // Validar el límite diario de consumo para la actualización
             $retirosHoyExceptCurrent = RetiroCombustible::where('tarjeta_combustible_id', $tarjeta->id)
-                                                        ->whereDate('fecha', Carbon::today())
-                                                        ->where('id', '!=', $retiro->id) // Excluir el retiro actual
-                                                        ->sum('cantidad');
+                ->whereDate('fecha', Carbon::today())
+                ->where('id', '!=', $retiro->id) // Excluir el retiro actual
+                ->sum('cantidad');
             $projectedConsumoDiario = $retirosHoyExceptCurrent + $newCantidad;
             if ($tarjeta->limite_consumo_diario !== null && $projectedConsumoDiario > $tarjeta->limite_consumo_diario) {
                 DB::rollBack();
@@ -408,7 +480,6 @@ class RetiroCombustibleController extends Controller
 
             DB::commit();
             return ResponseFormat::response(200, 'Retiro de Combustible actualizado con éxito y saldos de tarjeta ajustados.', $retiro);
-
         } catch (ModelNotFoundException $e) {
             DB::rollBack();
             return ResponseFormat::response(404, 'Retiro de Combustible no encontrado.', null);
@@ -541,7 +612,6 @@ class RetiroCombustibleController extends Controller
             DB::commit();
 
             return ResponseFormat::response(200, 'Retiro de Combustible rechazado eliminado lógicamente con éxito.', null);
-
         } catch (ModelNotFoundException $e) {
             DB::rollBack();
             return ResponseFormat::response(404, 'Retiro de Combustible no encontrado.', null);

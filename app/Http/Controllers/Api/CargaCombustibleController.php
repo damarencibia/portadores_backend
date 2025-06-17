@@ -23,17 +23,22 @@ class CargaCombustibleController extends Controller
     public function index(Request $request)
     {
         try {
-            $itemsPerPage        = $request->input("itemsPerPage", 20);
-            $page                = $request->input("page", 1);
-            $tarjetaId           = $request->input("tarjeta_combustible_id");
-            $choferId            = $request->input("chofer_id");
-            $tipoCombustibleId   = $request->input("tipo_combustible_id");
-            $registradorId       = $request->input("registrado_por_id");
-            $search              = $request->input("search");
-            $withTrashed         = filter_var($request->input("with_trashed", false), FILTER_VALIDATE_BOOLEAN);
+            $itemsPerPage = $request->input("itemsPerPage", 20);
+            $page = $request->input("page", 1);
+            $tarjetaId = $request->input("tarjeta_combustible_id");
+            $choferId = $request->input("chofer_id");
+            $tipoCombustibleId = $request->input("tipo_combustible_id");
+            $registradorId = $request->input("registrado_por_id");
+            $search = $request->input("search");
+            $withTrashed = filter_var($request->input("with_trashed", false), FILTER_VALIDATE_BOOLEAN);
+
+            $empresaId = auth()->user()->empresa_id;
 
             $cargasQuery = CargaCombustible::query()
-                ->when($withTrashed, fn($q) => $q->withTrashed()) // 👈 incluye eliminados si se pide
+                ->whereHas('tarjetaCombustible.chofer.empresa', function ($query) use ($empresaId) {
+                    $query->where('id', $empresaId);
+                })
+                ->when($withTrashed, fn($q) => $q->withTrashed())
                 ->with([
                     'registradoPor',
                     'validadoPor',
@@ -80,49 +85,49 @@ class CargaCombustibleController extends Controller
             if ($itemsPerPage == -1) {
                 $collection = $cargasQuery->get();
                 $meta = [
-                    'total'     => $collection->count(),
-                    'perPage'   => $collection->count(),
-                    'page'      => 1,
+                    'total' => $collection->count(),
+                    'perPage' => $collection->count(),
+                    'page' => 1,
                     'last_page' => 1,
                 ];
             } else {
                 $paginated = $cargasQuery->paginate($itemsPerPage, ['*'], 'page', $page);
                 $collection = $paginated->items();
                 $meta = [
-                    'total'     => $paginated->total(),
-                    'perPage'   => $paginated->perPage(),
-                    'page'      => $paginated->currentPage(),
+                    'total' => $paginated->total(),
+                    'perPage' => $paginated->perPage(),
+                    'page' => $paginated->currentPage(),
                     'last_page' => $paginated->lastPage(),
                 ];
             }
 
             $cargas = collect($collection)->map(function ($carga) {
                 return [
-                    'id'                                => $carga->id,
-                    'accesed'                           => $carga->accesed,
-                    'fecha'                             => $carga->fecha,
-                    'hora'                              => $carga->hora,
-                    'tarjeta_combustible'               => optional($carga->tarjetaCombustible)->numero,
-                    'tipo_combustible'                  => optional($carga->tarjetaCombustible?->tipoCombustible)->nombre,
-                    'chofer'                            => optional($carga->tarjetaCombustible?->chofer)->nombre,
-                    'cantidad'                          => $carga->cantidad,
-                    'importe'                           => $carga->importe,
-                    'odometro'                          => $carga->odometro,
-                    'lugar'                             => $carga->lugar,
-                    'motivo'                            => $carga->motivo,
-                    'no_chip'                           => $carga->no_chip,
-                    'registrado_por'                    => optional($carga->registradoPor)->name,
-                    'validado_por'                      => optional($carga->validadoPor)->name,
-                    'fecha_validacion'                  => $carga->fecha_validacion,
-                    'estado'                            => $carga->estado,
-                    'motivo_rechazo'                    => $carga->motivo_rechazo,
-                    'saldo_monetario_anterior'          => $carga->saldo_monetario_anterior,
-                    'cantidad_combustible_anterior'     => $carga->cantidad_combustible_anterior,
-                    'saldo_monetario_al_momento_carga'  => $carga->saldo_monetario_al_momento_carga,
+                    'id' => $carga->id,
+                    'accessed' => $carga->accessed,
+                    'fecha' => $carga->fecha,
+                    'hora' => $carga->hora,
+                    'tarjeta_combustible' => optional($carga->tarjetaCombustible)->numero,
+                    'tipo_combustible' => optional($carga->tarjetaCombustible?->tipoCombustible)->nombre,
+                    'chofer' => optional($carga->tarjetaCombustible?->chofer)->nombre,
+                    'cantidad' => $carga->cantidad,
+                    'importe' => $carga->importe,
+                    'odometro' => $carga->odometro,
+                    'lugar' => $carga->lugar,
+                    'motivo' => $carga->motivo,
+                    'no_chip' => $carga->no_chip,
+                    'registrado_por' => optional($carga->registradoPor)->name,
+                    'validado_por' => optional($carga->validadoPor)->name,
+                    'fecha_validacion' => $carga->fecha_validacion,
+                    'estado' => $carga->estado,
+                    'motivo_rechazo' => $carga->motivo_rechazo,
+                    'saldo_monetario_anterior' => $carga->saldo_monetario_anterior,
+                    'cantidad_combustible_anterior' => $carga->cantidad_combustible_anterior,
+                    'saldo_monetario_al_momento_carga' => $carga->saldo_monetario_al_momento_carga,
                     'cantidad_combustible_al_momento_carga' => $carga->cantidad_combustible_al_momento_carga,
-                    'eliminado'                         => $carga->trashed(),
-                    'deleted_at'                        => $carga->deleted_at,
-                    'deletion_reason'                   => $carga->deletion_reason,
+                    'eliminado' => $carga->trashed(),
+                    'deleted_at' => $carga->deleted_at,
+                    'deletion_reason' => $carga->deletion_reason,
                 ];
             });
 
@@ -135,24 +140,25 @@ class CargaCombustibleController extends Controller
     public function getAccessedChargeIds()
     {
         try {
-            // Get all CargaCombustible records where 'accesed' is true
-            $accessedCharges = CargaCombustible::where('accesed', false)
+            // Get the authenticated user's empresa_id
+            $empresaId = auth()->user()->empresa_id;
+
+            // Get CargaCombustible records where 'accessed' is false AND belong to the user's company
+            $accessedCharges = CargaCombustible::where('accessed', false)
+                ->whereHas('tarjetaCombustible.chofer.empresa', function ($query) use ($empresaId) {
+                    $query->where('id', $empresaId);
+                })
                 ->pluck('id') // Get only the 'id' column
                 ->toArray(); // Convert the collection to a plain PHP array
 
             $count = count($accessedCharges);
 
-            // You can log these IDs or use them as needed
-            // For now, we'll return them in the response.
-            // You might want to save them to a file, cache, or another database table
-            // depending on your application's requirements.
-
             return ResponseFormat::response(
                 200,
-                "Se encontraron {$count} cargas con 'accesed' en verdadero.",
+                "Se encontraron {$count} cargas con 'accessed' en falso para la empresa del usuario.",
                 [
                     'count' => $count,
-                    'ids'   => $accessedCharges,
+                    'ids' => $accessedCharges,
                 ]
             );
         } catch (Exception $e) {
@@ -238,19 +244,19 @@ class CargaCombustibleController extends Controller
                 'cantidad_combustible_al_momento_carga',
                 'saldo_monetario_anterior',
                 'cantidad_combustible_anterior',
-                // 'accesed' // You might want to remove 'accesed' from here if it's always set by the backend
+                // 'accessed' // You might want to remove 'accessed' from here if it's always set by the backend
             ]);
 
             $dataToCreate['importe'] = $calculatedImporte;
 
-            // --- Lógica para establecer 'accesed' basada en el rol del usuario autenticado ---
+            // --- Lógica para establecer 'accessed' basada en el rol del usuario autenticado ---
             $user = Auth::user();
             if ($user && $user->roles === 'supervisor') {
-                $dataToCreate['accesed'] = true; // Set to true (or 1) for supervisors
+                $dataToCreate['accessed'] = true; // Set to true (or 1) for supervisors
             } else {
-                $dataToCreate['accesed'] = false; // Set to false (or 0) for others by default
+                $dataToCreate['accessed'] = false; // Set to false (or 0) for others by default
             }
-            // --- Fin de la lógica de 'accesed' ---
+            // --- Fin de la lógica de 'accessed' ---
 
             $carga = CargaCombustible::create($dataToCreate);
 
@@ -322,19 +328,19 @@ class CargaCombustibleController extends Controller
 
             $carga = $query->firstOrFail();
 
-            // 👉 Lógica para cambiar accesed según el rol
+            // 👉 Lógica para cambiar accessed según el rol
             $user = Auth::user();
             if ($user && $user->roles === 'supervisor') {
-                $carga->accesed = true;
+                $carga->accessed = true;
             } else {
-                $carga->accesed = false;
+                $carga->accessed = false;
             }
 
             $carga->save();
 
             $responseData = [
                 'id'                                    => $carga->id,
-                'accesed'                               => $carga->accesed,
+                'accessed'                              => $carga->accessed,
                 'fecha'                                 => $carga->fecha,
                 'hora'                                  => $carga->hora,
                 'tarjeta_combustible'                   => optional($carga->tarjetaCombustible)->numero,

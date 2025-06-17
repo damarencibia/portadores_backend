@@ -10,7 +10,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\EmpresaController;
 use App\Http\Controllers\Api\TipoCombustibleController;
 use App\Http\Controllers\Api\VehiculoController;
-use App\Http\Controllers\Api\VehiculoInoperatividadController; 
+use App\Http\Controllers\Api\VehiculoInoperatividadController;
 use App\Http\Controllers\Api\TarjetaCombustibleController;
 use App\Http\Controllers\Api\CargaCombustibleController;
 use App\Http\Controllers\Api\RetiroCombustibleController;
@@ -66,6 +66,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/{id}', [RoleController::class, 'destroy']); // Elimina un rol por ID
     });
 
+    Route::get('/empresas/by-user/{userId}', [EmpresaController::class, 'getCompanyByUserId']); // Lista todos los roles
     // Rutas Resource para la gestión de empresas
     Route::apiResource('empresas', EmpresaController::class);
 
@@ -78,7 +79,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 
 
-    
+
     Route::get('/vehiculos/reportes/cdt', [VehiculoController::class, 'calculateCdt']);
     // Rutas Resource para la gestión de Vehículos
     Route::apiResource('vehiculos', VehiculoController::class);
@@ -94,6 +95,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas Resource para la gestión de Cargas de Combustible
     Route::apiResource('carga-combustibles', CargaCombustibleController::class);
 
+    Route::get('/retiros-combustible/accessed-ids', [RetiroCombustibleController::class, 'getAccessedChargeIds']);
     Route::post('/retiros-combustible/{id}/validar', [RetiroCombustibleController::class, 'validar']); // Valida una carga de combustible
     // Rutas Resource para la gestión de Retiros de Combustible
     Route::apiResource('retiros-combustible', RetiroCombustibleController::class);
@@ -104,6 +106,4 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // etc.
     });
     */
-
-
 });

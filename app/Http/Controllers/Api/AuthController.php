@@ -5,47 +5,73 @@ namespace App\Http\Controllers\API;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Empresa;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use App\Utils\ResponseFormat;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
     /**
      * Registro de nuevo usuario
      */
-    public function register(Request $request)
+ public function register(Request $request)
     {
         try {
+            // Validate user and new company data
             $validatedData = $request->validate([
                 'name' => 'required|max:255|unique:users',
                 'lastname' => 'required|max:255',
                 'email' => 'required|email|unique:users',
                 'phone' => 'required|string',
-                'empresa_id' => 'required|exists:empresas,id',
                 'password' => 'required|min:8|confirmed',
+                // New fields for the company
+                'company_name' => 'required|string|max:255|unique:empresas,nombre', // Validate company name
+                'company_address' => 'required|string|max:255', // Validate company address
             ]);
 
+            // Start a database transaction
+            // This ensures that if creating the user fails, the company creation is rolled back too.
+            DB::beginTransaction();
+
+            // 1. Create the new company
+            $empresa = Empresa::create([
+                'nombre' => $validatedData['company_name'],
+                'direccion' => $validatedData['company_address'],
+            ]);
+
+            // 2. Create the new user, associating them with the newly created company
             $user = User::create([
                 'name' => $validatedData['name'],
                 'lastname' => $validatedData['lastname'],
                 'email' => $validatedData['email'],
                 'phone' => $validatedData['phone'],
-                'empresa_id' => $validatedData['empresa_id'],
+                'empresa_id' => $empresa->id, // Assign the ID of the newly created company
                 'password' => Hash::make($validatedData['password']),
+                'roles' => 'supervisor', // Hardcoded to 'supervisor'
             ]);
 
+            // Commit the transaction if both creations were successful
+            DB::commit();
+
+            // Create authentication token
             $tokenResult = $user->createToken('authToken', ['*']);
             $token = $tokenResult->plainTextToken;
 
-            return ResponseFormat::response(201, 'Usuario registrado con éxito', [
+            return ResponseFormat::response(201, 'Usuario y Empresa registrados con éxito', [
                 'token' => $token,
-                'user' => $user
+                'user' => $user->load('empresa') // Optionally load the company data with the user
             ]);
+
         } catch (ValidationException $e) {
+            // Rollback transaction if validation fails
+            DB::rollBack();
             return ResponseFormat::response(422, ResponseFormat::validatorErrorMessage($e->validator));
         } catch (\Exception $e) {
+            // Rollback transaction for any other exception
+            DB::rollBack();
             return ResponseFormat::exceptionResponse($e);
         }
     }
@@ -122,9 +148,9 @@ class AuthController extends Controller
             $user = $request->user();
 
             $validatedData = $request->validate([
-                'name' => 'sometimes|max:255|unique:users,name,'.$user->id,
+                'name' => 'sometimes|max:255|unique:users,name,' . $user->id,
                 'lastname' => 'sometimes|max:255',
-                'email' => 'sometimes|email|unique:users,email,'.$user->id,
+                'email' => 'sometimes|email|unique:users,email,' . $user->id,
                 'phone' => 'sometimes|string',
                 'password' => 'sometimes|min:8|confirmed',
             ]);

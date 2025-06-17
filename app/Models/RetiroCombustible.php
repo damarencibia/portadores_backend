@@ -12,7 +12,7 @@ class RetiroCombustible extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'accesed',
+        'accessed',
         'fecha',
         'hora',
         'tarjeta_combustible_id',

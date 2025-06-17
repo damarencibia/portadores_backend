@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('carga_combustibles', function (Blueprint $table) {
             $table->id();
-            $table->boolean('accesed')->default(false);
+            $table->boolean('accessed')->default(false);
             $table->date('fecha');
             $table->time('hora');
 

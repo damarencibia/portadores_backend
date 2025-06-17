@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\TarjetaCombustible;
-use App\Models\CargaCombustible; // Asegúrate de importar CargaCombustible
-use App\Models\RetiroCombustible; // Asegúrate de importar CargaCombustible
+use App\Models\CargaCombustible;
+use App\Models\RetiroCombustible;
 use App\Models\TipoCombustible;
 use App\Models\Vehiculo;
 use App\Models\Empresa;
@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Exception;
 use PDF;
-use Illuminate\Support\Facades\Log; // Importar la fachada Log
+use Illuminate\Support\Facades\Log;
 
 class TarjetaCombustibleController extends Controller
 {

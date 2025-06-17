@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Exception;
+use Illuminate\Support\Facades\Auth;
 
 class ChoferController extends Controller
 {
@@ -45,7 +46,6 @@ class ChoferController extends Controller
             $choferes = $itemsPerPage != -1 ? $paginated->items() : $paginated;
 
             return ResponseFormat::response(200, 'Lista de Choferes obtenida con éxito.', $choferes, $meta);
-
         } catch (Exception $e) {
             return ResponseFormat::exceptionResponse($e);
         }
@@ -88,7 +88,6 @@ class ChoferController extends Controller
             // Cargar la relación empresa para la respuesta
             $chofer->load('empresa');
             return ResponseFormat::response(201, 'Chofer creado exitosamente.', $chofer);
-
         } catch (Exception $e) {
             DB::rollBack();
             return ResponseFormat::exceptionResponse($e);
@@ -101,7 +100,22 @@ class ChoferController extends Controller
     public function getNames()
     {
         try {
-            $nombres = Chofer::select('id', 'nombre')->get();
+            // Obtener el ID del usuario autenticado
+            $userId = Auth::id();
+
+            // Obtener la empresa_id del usuario autenticado (asumiendo que tienes una relación 'empresa' en el modelo User)
+            $empresaId = DB::table('users')->where('id', $userId)->value('empresa_id');
+
+            // Si no se encuentra la empresa_id, devolver un error o una lista vacía, según sea necesario
+            if (!$empresaId) {
+                return ResponseFormat::response(400, 'No se encontró la empresa del usuario.', []);
+            }
+
+            // Obtener solo los nombres de los choferes que pertenecen a la misma empresa
+            $nombres = Chofer::select('id', 'nombre')
+                ->where('empresa_id', $empresaId)
+                ->get();
+
             return ResponseFormat::response(200, 'Lista de nombres obtenida correctamente.', $nombres);
         } catch (\Exception $e) {
             return ResponseFormat::exceptionResponse($e);
@@ -138,7 +152,7 @@ class ChoferController extends Controller
             if (!$chofer) {
                 return ResponseFormat::response(404, 'Chofer no encontrado.');
             }
-            
+
             $validator = Validator::make($request->all(), [
                 'nombre' => 'sometimes|required|string|max:255',
                 'apellidos' => 'sometimes|required|string|max:255',
@@ -161,7 +175,7 @@ class ChoferController extends Controller
                 $message = ResponseFormat::validatorErrorMessage($validator);
                 return ResponseFormat::response(422, $message, ['errors' => $validator->errors()]);
             }
-            
+
             DB::beginTransaction();
 
             $chofer->update($request->all());
@@ -170,7 +184,6 @@ class ChoferController extends Controller
             // Cargar la relación empresa para la respuesta actualizada
             $chofer->load('empresa');
             return ResponseFormat::response(200, 'Chofer actualizado con éxito.', $chofer);
-
         } catch (ModelNotFoundException $e) { // Específicamente para findOrFail si se usara
             DB::rollBack(); // Asegurar rollback si la transacción se inició
             return ResponseFormat::response(404, 'Chofer no encontrado.');

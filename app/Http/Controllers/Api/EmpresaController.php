@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Empresa;
+use App\Models\User;
 use App\Utils\ResponseFormat; // Asegúrate de que la ruta sea correcta
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -165,6 +166,39 @@ class EmpresaController extends Controller
                 'deleted_id' => $id
             ]);
         } catch (Exception $e) {
+            return ResponseFormat::exceptionResponse($e);
+        }
+    }
+
+     public function getCompanyByUserId($userId)
+    {
+        try {
+            // Find the user by ID
+            $user = User::find($userId);
+
+            // If user not found, return 404
+            if (!$user) {
+                return ResponseFormat::response(404, 'Usuario no encontrado.', null);
+            }
+
+            // If the user has an associated company_id, find the company
+            if ($user->empresa_id) {
+                $empresa = Empresa::find($user->empresa_id);
+
+                // If company found, return its data
+                if ($empresa) {
+                    return ResponseFormat::response(200, 'Información de la empresa obtenida con éxito.', $empresa);
+                } else {
+                    // This case handles if a user has an empresa_id but the company itself doesn't exist
+                    return ResponseFormat::response(404, 'Empresa asociada al usuario no encontrada.', null);
+                }
+            } else {
+                // If user doesn't have an associated company_id
+                return ResponseFormat::response(400, 'El usuario no tiene una empresa asociada.', null);
+            }
+
+        } catch (Exception $e) {
+            // Catch any other exceptions
             return ResponseFormat::exceptionResponse($e);
         }
     }
