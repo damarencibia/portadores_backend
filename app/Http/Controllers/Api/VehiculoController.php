@@ -14,8 +14,9 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Validator;
 use Exception;
 use Carbon\Carbon;
-use PDF; // Asegúrate de haber configurado el alias en config/app.php para barryvdh/laravel-dompdf
-use Illuminate\Support\Facades\Log; // For logging in the example method
+use PDF; 
+use Illuminate\Support\Facades\Log; 
+use Illuminate\Support\Facades\DB;  
 
 class VehiculoController extends Controller
 {

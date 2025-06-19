@@ -49,6 +49,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     Route::prefix('choferes')->group(function () {
+        Route::get('/get-details/{id}', [ChoferController::class, 'getChoferDetails']); // Lista todos los chofers
         Route::get('/get-names', [ChoferController::class, 'getnames']); // Lista todos los chofers
         Route::get('/', [ChoferController::class, 'index']); // Lista todos los chofers
         Route::get('/{id}', [ChoferController::class, 'show']); // Muestra un chofer por ID
